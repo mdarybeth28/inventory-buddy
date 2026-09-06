@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inventory Buddy — V2</title>
+<style>
+*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f5f6f8;color:#222}
+header{background:#1f2937;color:white;padding:24px 18px}h1{margin:0 0 6px;font-size:28px}.sub{opacity:.85}
+main{max-width:760px;margin:auto;padding:16px}.card{background:white;border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 2px 10px #0000000d}
+button{border:0;border-radius:11px;padding:11px 14px;font-size:15px;cursor:pointer;margin:3px}.primary{background:#2563eb;color:white}.secondary{background:#e5e7eb}.danger{background:#fee2e2;color:#991b1b}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}label{font-size:14px;font-weight:600;display:block;margin-top:8px}
+input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:16px;margin:6px 0 10px}
+.item{border-top:1px solid #eee;padding:14px 0}.row{display:flex;justify-content:space-between;gap:10px;align-items:center}.small{font-size:13px;color:#666}.low{color:#b91c1c;font-weight:700}.good{color:#15803d;font-weight:700}
+.badge{display:inline-block;background:#eef2ff;border-radius:20px;padding:4px 8px;font-size:12px;margin-top:5px}.hidden{display:none}
+.dashboard{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:14px 0}
+.stat{background:white;border-radius:16px;padding:16px;box-shadow:0 2px 10px #0000000d;text-align:center}
+.stat .num{font-size:28px;font-weight:800;margin:4px 0}.stat .label{font-size:13px;color:#666}
+@media(min-width:650px){.dashboard{grid-template-columns:repeat(4,1fr)}}
+@media print{header,.nav,.no-print{display:none!important}body{background:white}.card{box-shadow:none}}
+</style>
+</head>
+<body>
+<header><h1>📦 Inventory Buddy</h1><div class="sub">Version 2 • Simple inventory for small businesses</div></header>
+<main>
+<div class="dashboard no-print">
+  <div class="stat"><div class="num" id="statItems">0</div><div class="label">📦 Total Items</div></div>
+  <div class="stat"><div class="num" id="statLow">0</div><div class="label">⚠️ Low Stock</div></div>
+  <div class="stat"><div class="num" id="statOrder">0</div><div class="label">📝 To Order</div></div>
+  <div class="stat"><div class="num" id="statMonths">0</div><div class="label">📅 Saved Months</div></div>
+</div>
+<div class="grid nav" id="navButtons">
+<button class="primary" onclick="show('add')">➕ Add Item</button>
+<button onclick="show('inventory')">📋 My Inventory</button>
+<button onclick="show('low')">⚠️ Low Stock</button>
+<button onclick="show('order')">📝 Order List</button>
+<button onclick="show('monthly')">📅 Monthly Inventory</button>
+</div>
+
+<button class="primary no-print" style="width:100%;margin:12px 0" onclick="show('low')">⚠️ Open Low Stock Items</button>
+<section id="add" class="card">
+<h2 id="formTitle">Add an Item</h2>
+<label>Item name</label><input id="name" placeholder="Example: Hamburger Buns">
+<label>Category</label>
+<select id="cat"><option>Food</option><option>Paper</option><option>Cleaning</option><option>Beverage</option><option>Supplies</option><option>Other</option></select>
+<label>Unit</label>
+<select id="unit"><option>cases</option><option>boxes</option><option>cans</option><option>bags</option><option>packs</option><option>each</option><option>pounds</option><option>gallons</option></select>
+<label>Current quantity</label><input id="qty" type="number" min="0" step="0.1" placeholder="0">
+<label>Minimum stock</label><input id="min" type="number" min="0" step="0.1" placeholder="2">
+<label>Normal order quantity</label><input id="orderQty" type="number" min="0" step="0.1" placeholder="4">
+<label>Barcode (optional)</label><input id="barcode" inputmode="numeric" placeholder="Scan/type barcode">
+<button class="primary" onclick="saveItem()">Save Item</button>
+<button class="secondary" onclick="cancelEdit()">Cancel</button>
+</section>
+
+<section id="inventory" class="card hidden"><h2>📋 My Inventory</h2>
+<label>Search inventory</label><input id="searchBox" placeholder="Search items..." oninput="render()">
+<div id="inventoryList"></div></section>
+<section id="low" class="card hidden"><h2>⚠️ Low Stock</h2><div id="lowList"></div></section>
+<section id="monthly" class="card hidden">
+<h2>📅 Monthly Inventory</h2>
+<p class="small">Save a snapshot of your current counts. You can compare this month with a previous month.</p>
+<label>Month</label><input id="snapshotMonth" type="month">
+<button class="primary" onclick="saveSnapshot()">Save This Month</button>
+<div id="snapshots"></div>
+<div id="comparison"></div>
+</section>
+
+<section id="order" class="card hidden">
+<h2>📝 Order List</h2><div id="orderList"></div>
+<div class="no-print"><button class="primary" onclick="window.print()">🖨️ Print Order List</button>
+<button class="secondary" onclick="copyGordonOrder()">📋 Copy Order for Gordon</button></div>
+</section>
+
+<section class="card no-print">
+<h3>💾 Backup</h3>
+<div class="small">Save a copy of your inventory or restore one later.</div>
+<button class="secondary" onclick="backup()">Export Backup</button>
+<label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
+</section>
+<div class="card small no-print">Next planned feature: 📅 Monthly Inventory — save each month's count and compare changes over time.</div>
+</main>
+
+<script>
+let items=JSON.parse(localStorage.getItem('inventoryBuddyV2')||'[]');
+let snapshots=JSON.parse(localStorage.getItem('inventoryBuddySnapshots')||'[]');
+let editingId=null;
+
+function persist(){localStorage.setItem('inventoryBuddyV2',JSON.stringify(items));render();}
+function saveSnapshot(){
+ const month=document.getElementById('snapshotMonth').value;
+ if(!month)return alert('Choose a month first.');
+ const existing=snapshots.find(s=>s.month===month);
+ const data=items.map(i=>({id:i.id,name:i.name,cat:i.cat,unit:i.unit,qty:i.qty,min:i.min}));
+ if(existing) existing.items=data; else snapshots.push({month,items:data});
+ snapshots.sort((a,b)=>b.month.localeCompare(a.month));
+ localStorage.setItem('inventoryBuddySnapshots',JSON.stringify(snapshots));
+ renderMonthly(); alert('Monthly inventory saved!');
+}
+function deleteSnapshot(month){
+ if(confirm('Delete this monthly snapshot?')){
+  snapshots=snapshots.filter(s=>s.month!==month);
+  localStorage.setItem('inventoryBuddySnapshots',JSON.stringify(snapshots)); renderMonthly();
+ }
+}
+function renderMonthly(){
+ const box=document.getElementById('snapshots'); if(!box)return;
+ box.innerHTML=snapshots.length ? '<h3>Saved Months</h3>'+snapshots.map(s=>
+  `<div class="item"><div><b>${esc(s.month)}</b><div class="small">${s.items.length} items saved</div></div><button class="danger" onclick="deleteSnapshot('${s.month}')">Delete</button></div>`
+ ).join('') : '<p class="small">No monthly inventories saved yet.</p>';
+ if(snapshots.length>=2){
+  const a=snapshots[0], b=snapshots[1];
+  const mapA=Object.fromEntries(a.items.map(i=>[i.name,i]));
+  const rows=b.items.map(old=>{
+   const now=mapA[old.name]; if(!now)return `<div class="item"><b>${esc(old.name)}</b> — not in ${esc(a.month)}</div>`;
+   const diff=now.qty-old.qty;
+   return `<div class="item"><b>${esc(old.name)}</b><br><span class="small">${esc(b.month)}: ${old.qty} ${esc(old.unit)} → ${esc(a.month)}: ${now.qty} ${esc(now.unit)}</span><br><span class="${diff<0?'low':'good'}">${diff>0?'+':''}${diff} change</span></div>`;
+  }).join('');
+  document.getElementById('comparison').innerHTML=`<h3>📊 ${esc(a.month)} vs ${esc(b.month)}</h3>${rows}`;
+ } else document.getElementById('comparison').innerHTML='';
+}
+function saveItem(){
+ const name=document.getElementById('name').value.trim();
+ if(!name)return alert('Please enter an item name.');
+ const data={name,cat:cat.value,unit:unit.value,qty:Number(qty.value||0),min:Number(min.value||0),orderQty:Number(orderQty.value||0),barcode:barcode.value.trim()};
+ if(editingId){Object.assign(items.find(x=>x.id===editingId),data)}else{items.push({id:Date.now(),...data})}
+ cancelEdit();persist();show('inventory');
+}
+function editItem(id){
+ const x=items.find(i=>i.id===id);editingId=id;
+ name.value=x.name;cat.value=x.cat;unit.value=x.unit;qty.value=x.qty;min.value=x.min;orderQty.value=x.orderQty;barcode.value=x.barcode||'';
+ formTitle.textContent='✏️ Edit Item';show('add');
+}
+function cancelEdit(){editingId=null;formTitle.textContent='Add an Item';name.value='';qty.value='';min.value='';orderQty.value='';barcode.value='';cat.value='Food';unit.value='cases';}
+function change(id,delta){const x=items.find(i=>i.id===id);x.qty=Math.max(0,x.qty+delta);persist();}
+function removeItem(id){if(confirm('Delete this item?')){items=items.filter(i=>i.id!==id);persist();}}
+function itemHTML(i){
+ const low=i.qty<=i.min;
+ return `<div class="item"><div class="row"><div><b>${esc(i.name)}</b><div><span class="badge">${esc(i.cat)}</span> <span class="badge">${esc(i.unit)}</span></div>
+ <div class="${low?'low':'good'}">${low?'⚠️ LOW STOCK':'✓ In stock'} — ${i.qty} ${esc(i.unit)} <span class="small">(minimum ${i.min})</span></div>
+ ${low&&i.orderQty?`<div class="small">Suggested order: <b>${i.orderQty} ${esc(i.unit)}</b></div>`:''}${i.barcode?`<div class="small">Barcode: ${esc(i.barcode)}</div>`:''}</div>
+ <div><button onclick="change(${i.id},-1)">−</button><button onclick="change(${i.id},1)">+</button></div></div>
+ <div class="no-print"><button class="secondary" onclick="editItem(${i.id})">✏️ Edit</button><button class="danger" onclick="removeItem(${i.id})">Delete</button></div></div>`;
+}
+function list(data){return data.length?data.map(itemHTML).join(''):'<p class="small">Nothing here yet.</p>'}
+function render(){
+ inventoryList.innerHTML=list(items);
+ const low=items.filter(i=>i.qty<=i.min);lowList.innerHTML=list(low);
+ orderList.innerHTML=low.length?low.map(i=>`<div class="item"><b>${esc(i.name)}</b> — order <b>${i.orderQty||'needed'}</b> ${esc(i.unit)} <span class="small">(${i.cat})</span></div>`).join(''):'<p class="small">Nothing needs ordering.</p>';
+ document.getElementById('statItems').textContent=items.length;
+ document.getElementById('statLow').textContent=low.length;
+ document.getElementById('statOrder').textContent=low.length;
+ document.getElementById('statMonths').textContent=(typeof snapshots!=='undefined'?snapshots.length:0);
+}
+function show(id){
+ ['add','inventory','low','order','monthly'].forEach(x=>{
+   const el=document.getElementById(x);
+   if(el) el.classList.toggle('hidden',x!==id);
+ });
+ render();
+ if(id==='monthly') renderMonthly();
+ window.scrollTo({top:0,behavior:'smooth'});
+}
+function copyGordonOrder(){
+ const low=items.filter(i=>i.qty<=i.min);
+ if(!low.length)return alert('Nothing needs ordering.');
+ const text=['GORDON ORDER LIST','',...low.map(i=>`${i.name} — ${i.orderQty||''} ${i.unit}`)].join('\n');
+ navigator.clipboard?.writeText(text).then(()=>alert('Order list copied!')).catch(()=>alert(text));
+}
+function backup(){
+ const blob=new Blob([JSON.stringify(items,null,2)],{type:'application/json'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='inventory-buddy-backup.json';a.click();URL.revokeObjectURL(a.href);
+}
+function restore(e){
+ const f=e.target.files[0];if(!f)return;const r=new FileReader();
+ r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d))throw 0;items=d;persist();alert('Inventory restored!')}catch{alert('That backup could not be restored.')}};
+ r.readAsText(f);
+}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+render();
+renderMonthly();
+</script>
+</body>
+</html>

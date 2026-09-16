@@ -1,0 +1,1389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inventory Buddy — V22 Receive Order v19</title>
+<style>
+*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f5f6f8;color:#222}
+header{background:#1f2937;color:white;padding:24px 18px}h1{margin:0 0 6px;font-size:28px}.sub{opacity:.85}
+main{max-width:760px;margin:auto;padding:16px}.card{background:white;border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 2px 10px #0000000d}
+button{border:0;border-radius:11px;padding:11px 14px;font-size:15px;cursor:pointer;margin:3px}.primary{background:#2563eb;color:white}.secondary{background:#e5e7eb}.danger{background:#fee2e2;color:#991b1b}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}label{font-size:14px;font-weight:600;display:block;margin-top:8px}
+input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:16px;margin:6px 0 10px}
+.item{border-top:1px solid #eee;padding:14px 0}.row{display:flex;justify-content:space-between;gap:10px;align-items:center}.small{font-size:13px;color:#666}.low{color:#b91c1c;font-weight:700}.good{color:#15803d;font-weight:700}
+.badge{display:inline-block;background:#eef2ff;border-radius:20px;padding:4px 8px;font-size:12px;margin-top:5px}.hidden{display:none}
+.dashboard{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:14px 0}
+.stat{background:white;border-radius:16px;padding:16px;box-shadow:0 2px 10px #0000000d;text-align:center;cursor:pointer;transition:transform .12s}
+.stat:active{transform:scale(.98)}.stat .num{font-size:28px;font-weight:800;margin:4px 0}.stat .label{font-size:13px;color:#666}
+.welcome{background:white;border-radius:16px;padding:18px;margin:14px 0;box-shadow:0 2px 10px #0000000d}.welcome h2{margin:0 0 4px;font-size:23px}.quick-actions{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:10px 0 14px}.quick-actions button{width:100%;margin:0}.section-title{font-size:15px;font-weight:700;margin:14px 0 8px;color:#444}.setup-note{font-size:13px;color:#666}
+@media(min-width:650px){.dashboard{grid-template-columns:repeat(4,1fr)}}
+@media print{header,.nav,.no-print{display:none!important}body{background:white}.card{box-shadow:none}}
+</style>
+<style>
+#appReady{position:fixed;right:10px;bottom:10px;padding:7px 10px;border-radius:999px;background:#eaf7ea;color:#236b23;font-size:12px;z-index:9999;opacity:.95}
+</style>
+<style>
+.monthly-table{width:100%;border-collapse:collapse;margin-top:12px}
+.monthly-table th,.monthly-table td{padding:9px 6px;border-bottom:1px solid #ddd;text-align:left}
+.monthly-table input{width:90px;padding:8px}
+.monthly-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+</style><style>
+.order-table{width:100%;border-collapse:collapse;margin-top:12px}
+.order-table th,.order-table td{padding:9px 6px;border-bottom:1px solid #ddd;text-align:left;vertical-align:top}
+.order-total{font-weight:700;margin-top:12px}
+.supplier-list{margin-top:10px}.supplier-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-top:1px solid #eee}.supplier-actions{display:flex;gap:4px;flex-wrap:wrap}
+</style><style>.manual-box{margin-top:14px;padding:12px;border:1px solid #dbeafe;background:#f8fbff;border-radius:12px}.manual-review{margin-top:10px}.manual-row{border-top:1px solid #e5e7eb;padding:10px 0}.manual-row:first-child{border-top:0}</style></head>
+<body><div id="appReady">✓ Ready</div>
+<header><h1>📦 Inventory Buddy</h1><div class="sub">Version 22 • Receive Order v19</div></header>
+<main>
+<section class="card no-print" id="cloudSyncCard">
+  <h2>☁️ Cloud Sync</h2>
+  <div id="cloudStatus" class="setup-note">Sign in to use the same Inventory Buddy data on your computer and phone.</div>
+  <div id="authForm" style="margin-top:10px">
+    <label>Email</label><input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com">
+    <label>Password</label><input id="authPassword" type="password" autocomplete="current-password" placeholder="At least 6 characters">
+    <button type="button" class="primary" onclick="cloudSignIn()">Sign In</button>
+    <button type="button" class="secondary" onclick="cloudSignUp()">Create Account</button>
+  </div>
+  <div id="signedInBox" class="hidden" style="margin-top:10px">
+    <div class="small">Signed in as <b id="cloudEmail"></b></div>
+    <button type="button" class="secondary" onclick="cloudSignOut()">Sign Out</button>
+    <button type="button" class="secondary" onclick="cloudSyncNow()">🔄 Sync Now</button>
+  </div>
+</section>
+
+<section class="welcome no-print">
+  <h2 id="businessGreeting">Welcome to Inventory Buddy 👋</h2>
+  <div id="businessDetails" class="setup-note">Set up your business name and type below.</div>
+  <button type="button" class="secondary no-print" style="margin-top:10px" onclick="toggleBusinessSetup()">⚙️ Edit Business Info</button>
+  <div id="businessSetup" style="margin-top:12px">
+    <label>Business name</label>
+    <input id="businessName" placeholder="Example: Mary's Café">
+    <label>Business type</label>
+    <select id="businessType">
+      <option>Restaurant</option><option>School Cafeteria</option><option>Café</option>
+      <option>Store</option><option>Hotel</option><option>Other</option>
+    </select>
+    <button type="button" class="primary" onclick="saveBusiness()">Save Business</button>
+  </div>
+</section>
+
+<div class="section-title no-print">📊 Dashboard</div>
+<div class="dashboard no-print">
+  <div class="stat" role="button" tabindex="0" onclick="show('inventory')"><div class="num" id="statItems">0</div><div class="label">📦 Total Items</div></div>
+  <div class="stat" role="button" tabindex="0" onclick="show('low')"><div class="num" id="statLow">0</div><div class="label">⚠️ Low Stock</div></div>
+  <div class="stat" role="button" tabindex="0" onclick="show('order')"><div class="num" id="statOrder">0</div><div class="label">📝 To Order</div></div>
+  <div class="stat" role="button" tabindex="0" onclick="show('suppliers')"><div class="num" id="statSuppliers">0</div><div class="label">🏢 Suppliers</div></div>
+</div>
+<div class="quick-actions no-print">
+  <button type="button" class="primary" onclick="show('add')">➕ Add Item</button>
+  <button type="button" onclick="show('quick')">⚡ Quick Count</button>
+  <button type="button" onclick="show('order')">📝 Order List</button>
+  <button type="button" onclick="show('monthly')">📅 Monthly Inventory</button>
+</div>
+<div class="section-title no-print">All Tools</div>
+<div class="grid nav" id="navButtons">
+<button type="button" onclick="show('inventory')">📋 My Inventory</button>
+<button type="button" onclick="show('low')">⚠️ Low Stock</button>
+<button type="button" onclick="show('history')">📋 Order History</button>
+<button type="button" onclick="show('suppliers')">🏢 Suppliers</button>
+<button type="button" onclick="show('receive')">📸 Receive Order</button>
+</div>
+
+<button type="button" class="secondary no-print" style="width:100%;margin:12px 0" onclick="show('low')">⚠️ View Low Stock Items</button>
+<section id="add" class="card hidden">
+<h2 id="formTitle">Add an Item</h2>
+<label>Item name</label><input id="name" placeholder="Example: Hamburger Buns">
+<label>Category</label>
+<select id="cat"><option>Food</option><option>Paper</option><option>Cleaning</option><option>Beverage</option><option>Supplies</option><option>Other</option></select>
+<label>Package type (how you count this item)</label>
+<select id="unit"><option>cases</option><option>crates</option><option>boxes</option><option>cans</option><option>bags</option><option>packs</option><option>each</option><option>pounds</option><option>gallons</option></select>
+<label>Items per package</label><input id="packSize" type="number" min="0" step="1" placeholder="Example: 80 donuts per case, 120 rolls per case">
+<div class="small" style="margin-top:-6px;margin-bottom:10px">This is specific to this item. Example: Donuts = 80/case, Rolls = 120/case, Milk = 50/crate, Juice = 75/crate.</div>
+<label>Current quantity</label><input id="qty" type="number" min="0" step="0.1" placeholder="0">
+<label>Minimum stock</label><input id="min" type="number" min="0" step="0.1" placeholder="2">
+<label>Normal order quantity</label><input id="orderQty" type="number" min="0" step="0.1" placeholder="4">
+<label>Barcode (optional)</label>
+<div class="row"><input id="barcode" inputmode="numeric" placeholder="Scan/type barcode" style="margin-bottom:10px"><button type="button" class="secondary" type="button" onclick="startScanner()">📷 Scan</button></div>
+<label>Supplier</label>
+<select id="supplierId"><option value="">No supplier assigned</option></select>
+<button type="button" class="primary" onclick="saveItem()">Save Item</button>
+<button type="button" class="secondary" onclick="cancelEdit()">Cancel</button>
+</section>
+
+
+<section id="quick" class="card hidden">
+<h2>⚡ Quick Count</h2>
+<p class="small">Find an item and quickly add or subtract from its current quantity.</p>
+<div class="grid">
+<label>Search item</label>
+<label>Category
+<select id="quickCategory" onchange="renderQuick()">
+<option value="">All categories</option><option>Food</option><option>Paper</option><option>Cleaning</option><option>Beverage</option><option>Supplies</option><option>Other</option>
+</select>
+</label>
+</div>
+<input id="quickSearch" placeholder="🔎 Search by item or barcode..." oninput="renderQuick()">
+<div class="row no-print" style="justify-content:space-between">
+<button type="button" class="secondary" onclick="document.getElementById('quickSearch').value='';document.getElementById('quickCategory').value='';renderQuick()">Clear Filters</button>
+<span class="small" id="quickCountLabel"></span>
+</div>
+<div id="quickList"></div>
+</section>
+
+<div id="scanner" class="card hidden no-print">
+<h2>📷 Scan Barcode</h2>
+<p class="small">Point your camera at the barcode and keep it inside the scanning box. Try a physical product barcode in good lighting.</p>
+<div id="reader" style="width:100%;max-width:500px;margin:auto"></div>
+<div class="row no-print" style="justify-content:center;gap:8px;flex-wrap:wrap">
+<button type="button" id="torchBtn" class="secondary" type="button" onclick="toggleTorch()">🔦 Flashlight Off</button>
+<button type="button" class="secondary" type="button" onclick="switchCamera()">🔄 Switch Camera</button>
+</div>
+<p id="torchStatus" class="small" style="text-align:center">If your phone supports flashlight control, turn it on for shiny or dark packages.</p>
+<button type="button" class="danger" onclick="stopScanner()">Close Scanner</button>
+</div>
+<section id="inventory" class="card hidden"><h2>📋 My Inventory</h2><p class="small no-print">Use <b>🧮 Use Items</b> when you open a package and use individual items. Inventory Buddy keeps the remaining amount as a package fraction and also shows the estimated individual units left.</p><div class="no-print" style="margin:10px 0;display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="primary" onclick="startUseScanner()">📷 Scan Barcode to Use</button><button type="button" class="secondary" onclick="typeBarcodeToUse()">⌨️ Type Barcode to Use</button></div>
+<label>Search inventory</label><input id="searchBox" placeholder="Search items..." oninput="render()">
+<div id="inventoryList"></div></section>
+<section id="low" class="card hidden"><h2>⚠️ Low Stock</h2><div id="lowList"></div></section>
+<section id="monthly" class="screen hidden">
+<div class="card">
+<h2>📋 Monthly Inventory</h2>
+<p class="small">Count each item below, then save the month. Your regular inventory is not changed until you save.</p>
+<div class="grid">
+<label>Month
+<input id="monthlyDate" type="month" autocomplete="off">
+</label>
+<label>Search
+<input id="monthlySearch" placeholder="🔎 Search items..." oninput="renderMonthlyFast()">
+</label>
+</div>
+<div class="monthly-actions">
+<button type="button" class="secondary" onclick="fillMonthlyFromCurrent()">Use Current Counts</button>
+<button type="button" class="secondary" onclick="setMonthlyToZero()">Set All Visible to 0</button>
+</div>
+<div id="monthlyFastList"></div>
+<button type="button" class="primary" onclick="saveMonthlyFast()">💾 Save Monthly Inventory</button>
+</div>
+</section>
+
+<section id="suppliers" class="card hidden">
+<h2>🏢 Suppliers</h2>
+<p class="small">Add the suppliers your business uses. You can assign a supplier to each inventory item.</p>
+<div class="grid">
+<label>Supplier name
+<input id="supplierName" placeholder="Example: Gordon Food Service">
+</label>
+<label>Phone or website (optional)
+<input id="supplierContact" placeholder="Phone, website, or other contact info">
+</label>
+</div>
+<button type="button" class="primary" onclick="saveSupplier()">➕ Add Supplier</button>
+<button type="button" class="secondary" onclick="cancelSupplierEdit()">Cancel</button>
+<div id="supplierList" class="supplier-list"></div>
+</section>
+
+<section id="receive" class="card hidden">
+<h2>📸 Receive Order</h2>
+<p class="small">Take a picture now or upload one later. You can add multiple pages, review what was read, and only update inventory after you confirm.</p>
+<label>Supplier (optional)</label>
+<select id="receiveSupplier"><option value="">No supplier selected</option></select>
+<div class="row" style="flex-wrap:wrap;margin-top:8px">
+<button type="button" class="primary" onclick="document.getElementById('receiveCameraInput').click()">📷 Take Photo</button>
+<button type="button" class="secondary" onclick="document.getElementById('receiveUploadInput').click()">⬆️ Upload Photo(s)</button>
+</div>
+<input id="receiveCameraInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="addReceiveFiles(event)">
+<input id="receiveUploadInput" type="file" accept="image/*" multiple class="hidden" onchange="addReceiveFiles(event)">
+<div id="receivePreview" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px"></div>
+<div class="row" style="flex-wrap:wrap;margin-top:10px">
+<button type="button" class="primary" onclick="processReceiveOrder()">🔎 Read Order</button>
+<button type="button" class="secondary" onclick="clearReceivePhotos()">Clear Photos</button>
+</div>
+<div id="receiveStatus" class="small" style="margin-top:8px"></div>
+<div class="manual-box no-print">
+<b>✍️ Add Item Manually</b>
+<div class="small" style="margin-top:4px">Use this when you do not have a photo, are in a hurry, or the receipt reader misses an item.</div>
+<label>Inventory item</label>
+<div class="row" style="gap:6px;align-items:center">
+<select id="manualItem" onchange="updateManualConversion()" style="flex:1"><option value="">Choose an existing item...</option></select>
+<button type="button" class="secondary" onclick="populateManualItemSelect()">↻ Refresh items</button>
+</div>
+<label>Received quantity</label>
+<input id="manualQty" type="number" min="0" step="0.01" placeholder="Example: 240" oninput="updateManualConversion()">
+<label>Receipt unit</label>
+<select id="manualReceiptUnit" onchange="updateManualConversion()"><option>units</option><option>cases</option><option>crates</option><option>boxes</option><option>each</option><option>lbs</option><option>packs</option><option>bags</option><option>other</option></select>
+<div id="manualConversion" class="small" style="margin:4px 0 8px"></div>
+<button type="button" class="secondary" onclick="addManualReceiveItem()">➕ Add to Review</button>
+<div id="manualReview" class="manual-review"></div>
+</div>
+<div id="receiveResults" style="margin-top:12px"></div>
+</section>
+
+<section id="history" class="card hidden">
+<h2>📋 Order History</h2>
+<p class="small">See what you marked as ordered and when.</p>
+<div id="orderHistoryList"></div>
+<button type="button" class="danger no-print" onclick="clearOrderHistory()">🗑️ Clear Order History</button>
+</section>
+
+<section id="order" class="card hidden">
+<h2>🧾 Order List</h2>
+<p class="small">Only items at or below minimum stock appear here.</p>
+<div class="grid">
+<label>Search
+<input id="orderSearch" placeholder="🔎 Search items..." oninput="renderSmartOrders()">
+</label>
+<label>Category
+<select id="orderCategory" onchange="renderSmartOrders()"><option value="">All Categories</option></select>
+</label>
+</div>
+<div id="smartOrderList"></div>
+<div class="row no-print" style="margin-top:12px;gap:8px;flex-wrap:wrap">
+<button type="button" class="secondary" onclick="resetOrderedItems()">↩️ Reset Ordered Items</button>
+<button type="button" class="primary" onclick="copySmartOrder()">📋 Copy Order</button>
+<button type="button" class="secondary" onclick="window.print()">🖨️ Print Order List</button>
+</div>
+</section>
+
+<section class="card no-print">
+<h3>💾 Backup</h3>
+<div class="small">Save a copy of your inventory or restore one later.</div>
+<button type="button" class="secondary" onclick="backup()">Export Backup</button>
+<label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
+</section>
+<div class="card small no-print">Version 22 • Receive Order with photo capture/upload, manual entry, multi-page support, OCR review, item-specific package sizes, and usage tracking for opened packages.</div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+function preserveScroll(fn){
+  const y=window.scrollY;
+  fn();
+  requestAnimationFrame(()=>window.scrollTo(0,y));
+}
+</script>
+<script>
+let items=JSON.parse(localStorage.getItem('inventoryBuddyV2')||'[]');
+let snapshots=JSON.parse(localStorage.getItem('inventoryBuddySnapshots')||'[]');
+let editingId=null;
+let business=JSON.parse(localStorage.getItem('inventoryBuddyBusiness')||'null');
+let orderedItems=JSON.parse(localStorage.getItem('inventoryBuddyOrdered')||'[]');
+let orderHistory=JSON.parse(localStorage.getItem('inventoryBuddyOrderHistory')||'[]');
+let suppliers=JSON.parse(localStorage.getItem('inventoryBuddySuppliers')||'[]');
+let editingSupplierId=null;
+
+function persist(){localStorage.setItem('inventoryBuddyV2',JSON.stringify(items));render();if(typeof scheduleCloudSync==='function')scheduleCloudSync();}
+function saveBusiness(){
+ const n=document.getElementById('businessName').value.trim();
+ const t=document.getElementById('businessType').value;
+ if(!n)return alert('Please enter your business name.');
+ business={name:n,type:t};
+ localStorage.setItem('inventoryBuddyBusiness',JSON.stringify(business));
+ if(typeof scheduleCloudSync==='function')scheduleCloudSync();
+ renderBusiness();
+ alert('Business information saved!');
+}
+function renderBusiness(){
+ const setup=document.getElementById('businessSetup');
+ if(!business){
+   document.getElementById('businessGreeting').textContent='Welcome to Inventory Buddy 👋';
+   document.getElementById('businessDetails').textContent='Set up your business name and type below.';
+   setup.style.display='block';
+   return;
+ }
+ document.getElementById('businessGreeting').textContent='Welcome, '+business.name+'! 👋';
+ document.getElementById('businessDetails').textContent=business.type+' • Inventory at a glance';
+ document.getElementById('businessName').value=business.name;
+ document.getElementById('businessType').value=business.type;
+ setup.style.display='none';
+}
+function toggleBusinessSetup(){
+ const setup=document.getElementById('businessSetup');
+ if(!setup)return;
+ setup.style.display=setup.style.display==='none'?'block':'none';
+}
+function saveSnapshot(){
+ const month=document.getElementById('snapshotMonth').value;
+ if(!month)return alert('Choose a month first.');
+ const existing=snapshots.find(s=>s.month===month);
+ const data=items.map(i=>({id:i.id,name:i.name,cat:i.cat,unit:i.unit,qty:i.qty,min:i.min}));
+ if(existing) existing.items=data; else snapshots.push({month,items:data});
+ snapshots.sort((a,b)=>b.month.localeCompare(a.month));
+ localStorage.setItem('inventoryBuddySnapshots',JSON.stringify(snapshots));
+ renderMonthly(); alert('Monthly inventory saved!');
+}
+function deleteSnapshot(month){
+ if(confirm('Delete this monthly snapshot?')){
+  snapshots=snapshots.filter(s=>s.month!==month);
+  localStorage.setItem('inventoryBuddySnapshots',JSON.stringify(snapshots)); renderMonthly();
+ }
+}
+function renderMonthly(){
+ const box=document.getElementById('snapshots'); if(!box)return;
+ box.innerHTML=snapshots.length ? '<h3>Saved Months</h3>'+snapshots.map(s=>
+  `<div class="item"><div><b>${esc(s.month)}</b><div class="small">${s.items.length} items saved</div></div><button type="button" class="danger" onclick="deleteSnapshot('${s.month}')">Delete</button></div>`
+ ).join('') : '<p class="small">No monthly inventories saved yet.</p>';
+ if(snapshots.length>=2){
+  const a=snapshots[0], b=snapshots[1];
+  const mapA=Object.fromEntries(a.items.map(i=>[i.name,i]));
+  const rows=b.items.map(old=>{
+   const now=mapA[old.name]; if(!now)return `<div class="item"><b>${esc(old.name)}</b> — not in ${esc(a.month)}</div>`;
+   const diff=now.qty-old.qty;
+   return `<div class="item"><b>${esc(old.name)}</b><br><span class="small">${esc(b.month)}: ${old.qty} ${esc(old.unit)} → ${esc(a.month)}: ${now.qty} ${esc(now.unit)}</span><br><span class="${diff<0?'low':'good'}">${diff>0?'+':''}${diff} change</span></div>`;
+  }).join('');
+  document.getElementById('comparison').innerHTML=`<h3>📊 ${esc(a.month)} vs ${esc(b.month)}</h3>${rows}`;
+ } else document.getElementById('comparison').innerHTML='';
+}
+function saveItem(){
+ const nameEl=document.getElementById('name');
+ const catEl=document.getElementById('cat');
+ const unitEl=document.getElementById('unit');
+ const packEl=document.getElementById('packSize');
+ const qtyEl=document.getElementById('qty');
+ const minEl=document.getElementById('min');
+ const orderEl=document.getElementById('orderQty');
+ const barcodeEl=document.getElementById('barcode');
+ const supplierEl=document.getElementById('supplierId');
+ const name=nameEl.value.trim();
+ if(!name)return alert('Please enter an item name.');
+ const data={name,cat:catEl.value,unit:unitEl.value,packSize:Number(packEl?.value||0),qty:Number(qtyEl.value||0),min:Number(minEl.value||0),orderQty:Number(orderEl.value||0),barcode:barcodeEl.value.trim(),supplierId:supplierEl?.value||''};
+ if(editingId){
+   const existing=items.find(x=>x.id===editingId);
+   if(!existing)return alert('This item could not be found. Refresh and try again.');
+   Object.assign(existing,data);
+ }else{
+   items.push({id:Date.now(),...data});
+ }
+ cancelEdit();
+ persist();
+ show('inventory');
+}
+function editItem(id){
+ const x=items.find(i=>i.id===id);
+ if(!x)return;
+ editingId=id;
+ document.getElementById('name').value=x.name||'';
+ document.getElementById('cat').value=x.cat||'Food';
+ document.getElementById('unit').value=x.unit||'cases';
+ document.getElementById('packSize').value=x.packSize||'';
+ document.getElementById('qty').value=x.qty ?? 0;
+ document.getElementById('min').value=x.min ?? 0;
+ document.getElementById('orderQty').value=x.orderQty ?? 0;
+ document.getElementById('barcode').value=x.barcode||'';
+ populateSupplierSelect();
+ const supplierEl=document.getElementById('supplierId');
+ if(supplierEl)supplierEl.value=x.supplierId||'';
+ document.getElementById('formTitle').textContent='✏️ Edit Item';
+ show('add');
+}
+function cancelEdit(){editingId=null;formTitle.textContent='Add an Item';name.value='';document.getElementById('packSize').value='';qty.value='';min.value='';orderQty.value='';barcode.value='';cat.value='Food';unit.value='cases';if(document.getElementById('supplierId'))document.getElementById('supplierId').value='';}
+function change(id,delta){
+ const y=window.scrollY;
+ const x=items.find(i=>i.id===id);
+ if(!x)return;
+ x.qty=Math.max(0,x.qty+delta);
+ localStorage.setItem('inventoryBuddyV2',JSON.stringify(items));
+ if(typeof scheduleCloudSync==='function')scheduleCloudSync();
+ render();
+ const quick=document.getElementById('quick');
+ if(quick && !quick.classList.contains('hidden')) renderQuick();
+ requestAnimationFrame(()=>window.scrollTo(0,y));
+}
+function removeItem(id){if(confirm('Delete this item?')){items=items.filter(i=>i.id!==id);persist();}}
+function itemHTML(i){
+ const low=Number(i.min)>0 && Number(i.qty)<=Number(i.min);
+ const pack=Number(i.packSize)||0;
+ const totalUnits=pack>0 ? Math.max(0,Number(i.qty)||0)*pack : null;
+ const qtyText=Number.isInteger(Number(i.qty))?Number(i.qty):Number(i.qty).toFixed(2).replace(/\.00$/,'');
+ return `<div class="item"><div class="row"><div><b>${esc(i.name)}</b><div><span class="badge">${esc(i.cat)}</span> <span class="badge">${esc(i.unit)}</span></div>
+ <div class="${low?'low':'good'}">${low?'⚠️ LOW STOCK':'✓ In stock'} — ${qtyText} ${esc(i.unit)} <span class="small">(minimum ${i.min})</span></div>
+ ${totalUnits!==null?`<div class="small">≈ ${Number.isInteger(totalUnits)?totalUnits:totalUnits.toFixed(1)} individual units remaining</div>`:''}
+ ${low&&i.orderQty?`<div class="small">Suggested order: <b>${i.orderQty} ${esc(i.unit)}</b></div>`:''}${i.barcode?`<div class="small">Barcode: ${esc(i.barcode)}</div>`:''}${pack>0?`<div class="small">Items per package: ${esc(pack)} units per ${esc(i.unit)}</div>`:''}${i.supplierId?`<div class="small">Supplier: ${esc(getSupplierName(i.supplierId))}</div>`:''}</div>
+ <div><button type="button" onclick="change(${i.id},-1)">−</button><button type="button" onclick="change(${i.id},1)">+</button></div></div>
+ <div class="no-print"><button type="button" class="secondary" onclick="useItems(${i.id})">🧮 Use Items</button><button type="button" class="secondary" onclick="editItem(${i.id})">✏️ Edit</button><button type="button" class="danger" onclick="removeItem(${i.id})">Delete</button></div></div>`;
+}
+function useItems(id){
+ const item=items.find(i=>i.id===id);
+ if(!item)return;
+ const pack=Number(item.packSize)||0;
+ const current=Number(item.qty)||0;
+ if(pack<=0){
+   const raw=prompt(`How many ${item.unit} of ${item.name} did you use?`, '1');
+   if(raw===null)return;
+   const used=Number(raw);
+   if(!Number.isFinite(used)||used<=0)return alert('Enter a quantity greater than 0.');
+   item.qty=Math.max(0,current-used);
+ } else {
+   const total=current*pack;
+   const raw=prompt(`How many individual ${item.name} items did you use?\nCurrently about ${Number.isInteger(total)?total:total.toFixed(1)} individual units remain.`, '1');
+   if(raw===null)return;
+   const used=Number(raw);
+   if(!Number.isFinite(used)||used<=0)return alert('Enter a quantity greater than 0.');
+   if(used>total+1e-9)return alert(`You only have about ${Number.isInteger(total)?total:total.toFixed(1)} individual units remaining.`);
+   item.qty=Math.max(0,current-(used/pack));
+ }
+ localStorage.setItem('inventoryBuddyV2',JSON.stringify(items));
+ if(typeof scheduleCloudSync==='function')scheduleCloudSync();
+ render();
+ // Keep every visible inventory-related section in sync immediately.
+ try{
+   if(typeof renderQuick==='function') renderQuick();
+   if(typeof renderMonthlyFast==='function') renderMonthlyFast();
+   if(typeof renderSuppliers==='function') renderSuppliers();
+   if(typeof renderSmartOrders==='function') renderSmartOrders();
+   if(typeof renderOrderHistory==='function') renderOrderHistory();
+ }catch(e){ console.warn('Immediate refresh warning:',e); }
+ const flash=document.getElementById('appReady');
+ if(flash){ flash.textContent='✓ Inventory updated'; flash.style.opacity='1'; setTimeout(()=>{flash.textContent='✓ Ready';},1400); }
+}
+function list(data){return data.length?data.map(itemHTML).join(''):'<p class="small">Nothing here yet.</p>'}
+function render(){
+ inventoryList.innerHTML=list(items);
+ const low=items.filter(i=>Number(i.min)>0 && Number(i.qty)<=Number(i.min));lowList.innerHTML=list(low);
+ const orderBox=document.getElementById('orderList'); if(orderBox) orderBox.innerHTML=low.length?low.map(i=>`<div class="item"><b>${esc(i.name)}</b> — order <b>${i.orderQty||'needed'}</b> ${esc(i.unit)} <span class="small">(${i.cat})</span></div>`).join(''):'<p class="small">Nothing needs ordering.</p>';
+ document.getElementById('statItems').textContent=items.length;
+ document.getElementById('statLow').textContent=low.length;
+ document.getElementById('statOrder').textContent=low.length;
+ document.getElementById('statMonths').textContent=(typeof snapshots!=='undefined'?snapshots.length:0);
+ document.getElementById('statSuppliers').textContent=(typeof suppliers!=='undefined'?suppliers.length:0);
+}
+function renderQuick(){ const y=window.scrollY;
+ const q=(document.getElementById('quickSearch').value||'').toLowerCase().trim();
+ const cat=document.getElementById('quickCategory')?.value||'';
+ const data=items.filter(i=>(!q||i.name.toLowerCase().includes(q)||String(i.barcode||'').includes(q))&&(!cat||i.cat===cat));
+ document.getElementById('quickCountLabel').textContent=`${data.length} item${data.length===1?'':'s'}`;
+ document.getElementById('quickList').innerHTML=data.length?data.map(i=>{
+   const low=Number(i.min)>0 && Number(i.qty)<=Number(i.min);
+   return `<div class="item"><div class="row"><div style="flex:1"><b>${esc(i.name)}</b><div class="small">${esc(i.cat)} • Current: <b>${i.qty}</b> ${esc(i.unit)}</div><div class="${low?'low':'good'}">${low?'⚠️ LOW':'✓ OK'} <span class="small">minimum ${i.min}</span></div></div><div style="display:flex;align-items:center;gap:6px"><button type="button" style="font-size:22px;min-width:46px" onclick="change(${i.id},-1)">−</button><strong style="min-width:34px;text-align:center">${i.qty}</strong><button type="button" class="primary" style="font-size:22px;min-width:46px" onclick="change(${i.id},1)">+</button></div></div></div>`;
+ }).join(''):'<p class="small">No matching items.</p>';
+}
+let scannerInstance=null;
+let torchOn=false;
+let currentCamera='environment';
+let scannerMode='inventory';
+async function toggleTorch(){
+ if(!scannerInstance){return;}
+ const btn=document.getElementById('torchBtn');
+ try{
+   torchOn=!torchOn;
+   await scannerInstance.applyVideoConstraints({advanced:[{torch:torchOn}]});
+   btn.textContent=torchOn?'🔦 Flashlight On':'🔦 Flashlight Off';
+   document.getElementById('torchStatus').textContent=torchOn?'Flashlight is on.':'Flashlight is off.';
+ }catch(e){
+   torchOn=false;
+   btn.textContent='🔦 Flashlight Off';
+   document.getElementById('torchStatus').textContent='Your browser/phone does not allow flashlight control here. Use your phone flashlight if needed.';
+ }
+}
+async function switchCamera(){
+ if(!scannerInstance){return;}
+ try{
+   const cameras=await Html5Qrcode.getCameras();
+   if(!cameras || cameras.length<2){
+     alert('Only one camera is available on this device.');
+     return;
+   }
+   const currentIndex=cameras.findIndex(c=>c.id===window.__cameraId);
+   const next=cameras[(currentIndex+1+cameras.length)%cameras.length];
+   await scannerInstance.stop();
+   torchOn=false;
+   document.getElementById('torchBtn').textContent='🔦 Flashlight Off';
+   document.getElementById('torchStatus').textContent='Camera switched.';
+   window.__cameraId=next.id;
+   scannerInstance.start(next.id,scannerConfig(),onScanSuccess,()=>{}).catch(()=>alert('Could not switch cameras.'));
+ }catch(e){alert('Camera switching is not available on this device.');}
+}
+function onScanSuccess(decodedText){
+ const code=String(decodedText||'').trim();
+ if(scannerMode==='use'){
+   stopScanner();
+   const found=items.find(i=>String(i.barcode||'').trim()===code);
+   if(!found){
+     alert(`No inventory item found with barcode ${code}. Add this barcode to the item first.`);
+     return;
+   }
+   useItems(found.id);
+   return;
+ }
+ document.getElementById('barcode').value=code;
+ stopScanner();
+}
+function scannerConfig(){
+ return {
+   fps:12,
+   qrbox:(viewfinderWidth,viewfinderHeight)=>{
+    const w=Math.min(Math.floor(viewfinderWidth*0.88),460);
+    const h=Math.min(Math.floor(viewfinderHeight*0.5),260);
+    return {width:w,height:h};
+   },
+   aspectRatio:1.777778,
+   rememberLastUsedCamera:true
+ };
+}
+function typeBarcodeToUse(){
+ const code=prompt('Enter the item barcode:');
+ if(code===null)return;
+ const clean=String(code).trim();
+ if(!clean)return alert('Please enter a barcode.');
+ const found=items.find(i=>String(i.barcode||'').trim()===clean);
+ if(!found)return alert(`No inventory item found with barcode ${clean}. Add this barcode to the item first.`);
+ useItems(found.id);
+}
+function startUseScanner(){
+ scannerMode='use';
+ document.getElementById('scanner').classList.remove('hidden');
+ document.getElementById('reader').innerHTML='';
+ if(typeof Html5Qrcode==='undefined'){alert('Barcode scanner could not load. Please type the barcode manually.');return;}
+ scannerInstance=new Html5Qrcode('reader');
+ const config=scannerConfig();
+ Html5Qrcode.getCameras().then(cameras=>{
+   if(cameras && cameras.length){
+     const preferred=cameras.find(c=>/back|rear|environment/i.test(c.label))||cameras[0];
+     window.__cameraId=preferred.id;
+     return scannerInstance.start(preferred.id,config,onScanSuccess,()=>{});
+   }
+   return scannerInstance.start({facingMode:'environment'},config,onScanSuccess,()=>{});
+ }).catch(()=>{alert(location.protocol==='file:'?'Camera access is blocked when this HTML file is opened directly from your computer. Use the live https:// Inventory Buddy site for camera scanning.':'Camera could not be opened. Please allow camera access.');stopScanner();});
+}
+function startScanner(){
+ scannerMode='inventory';
+ document.getElementById('scanner').classList.remove('hidden');
+ document.getElementById('reader').innerHTML='';
+ if(typeof Html5Qrcode==='undefined'){alert('Barcode scanner could not load. You can still type the barcode.');return;}
+ scannerInstance=new Html5Qrcode('reader');
+ const config=scannerConfig();
+ Html5Qrcode.getCameras().then(cameras=>{
+   if(cameras && cameras.length){
+     const preferred=cameras.find(c=>/back|rear|environment/i.test(c.label))||cameras[0];
+     window.__cameraId=preferred.id;
+     return scannerInstance.start(preferred.id,config,onScanSuccess,()=>{});
+   }
+   return scannerInstance.start({facingMode:'environment'},config,onScanSuccess,()=>{});
+ }).catch(()=>{alert(location.protocol==='file:'?'Camera access is blocked for a local file. Open the live https:// Inventory Buddy site, or use Type Barcode.':'Camera could not be opened. Please allow camera access or type the barcode manually.');});
+}
+function stopScanner(){
+ scannerMode='inventory';
+ torchOn=false;
+ const btn=document.getElementById('torchBtn');
+ if(btn)btn.textContent='🔦 Flashlight Off';
+ const box=document.getElementById('scanner');
+ box.classList.add('hidden');
+ if(scannerInstance){scannerInstance.stop().then(()=>scannerInstance.clear()).catch(()=>{});scannerInstance=null;}
+}
+function show(id){
+  const savedScroll = window.scrollY;
+ if(id!=='add') stopScanner();
+ ['add','inventory','low','order','monthly','quick','history','suppliers','receive'].forEach(x=>{
+   const el=document.getElementById(x);
+   if(el) el.classList.toggle('hidden',x!==id);
+ });
+ render();
+ if(id==='monthly'){initMonthlyFast();renderMonthly();}
+ if(id==='quick') renderQuick();
+ requestAnimationFrame(()=>window.scrollTo(0,savedScroll));
+
+  if(id==='order') renderSmartOrders();
+  if(id==='history') renderOrderHistory();
+  if(id==='suppliers'){populateSupplierSelect();renderSuppliers();}
+  if(id==='receive'){
+    try{items=JSON.parse(localStorage.getItem('inventoryBuddyV2')||'[]')}catch(e){items=[]}
+    populateReceiveSupplier();
+    populateManualItemSelect();
+    updateManualConversion();
+    renderManualReview();
+  }
+}
+
+function copyGordonOrder(){
+ const low=items.filter(i=>Number(i.min)>0 && Number(i.qty)<=Number(i.min));
+ if(!low.length)return alert('Nothing needs ordering.');
+ const text=['GORDON ORDER LIST','',...low.map(i=>`${i.name} — ${i.orderQty||''} ${i.unit}`)].join('\n');
+ navigator.clipboard?.writeText(text).then(()=>alert('Order list copied!')).catch(()=>alert(text));
+}
+function backup(){
+ const blob=new Blob([JSON.stringify(items,null,2)],{type:'application/json'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='inventory-buddy-backup.json';a.click();URL.revokeObjectURL(a.href);
+}
+function restore(e){
+ const f=e.target.files[0];if(!f)return;const r=new FileReader();
+ r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d))throw 0;items=d;persist();alert('Inventory restored!')}catch{alert('That backup could not be restored.')}};
+ r.readAsText(f);
+}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+render();
+renderMonthly();
+renderBusiness();
+populateSupplierSelect();
+</script>
+<script>
+requestAnimationFrame(()=>{const e=document.getElementById('appReady');if(e)e.textContent='✓ Ready';});
+</script>
+<script>
+let monthlyDraft = {};
+
+function initMonthlyFast(){
+  const d=new Date();
+  const m=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  const el=document.getElementById('monthlyDate');
+  if(el && !el.value) el.value=m;
+  renderMonthlyFast();
+}
+
+function renderMonthlyFast(){
+  const box=document.getElementById('monthlyFastList');
+  if(!box)return;
+  const q=(document.getElementById('monthlySearch')?.value||'').toLowerCase().trim();
+  const data=items.filter(i=>!q||i.name.toLowerCase().includes(q)||String(i.barcode||'').includes(q));
+  box.innerHTML=data.length?`<table class="monthly-table"><thead><tr><th>Item</th><th>Unit</th><th>Count</th></tr></thead><tbody>`+
+    data.map(i=>`<tr><td><b>${esc(i.name)}</b><div class="small">${esc(i.cat)}</div></td><td>${esc(i.unit)}</td><td><input type="number" min="0" step="1" inputmode="numeric" value="${monthlyDraft[i.id]??i.qty}" onchange="monthlyDraft[${i.id}]=Math.max(0,Number(this.value)||0)"></td></tr>`).join('')+
+    `</tbody></table>`:'<p class="small">No inventory items found. Add items first.</p>';
+}
+
+function fillMonthlyFromCurrent(){
+  items.forEach(i=>monthlyDraft[i.id]=i.qty);
+  renderMonthlyFast();
+}
+
+function setMonthlyToZero(){
+  const q=(document.getElementById('monthlySearch')?.value||'').toLowerCase().trim();
+  items.filter(i=>!q||i.name.toLowerCase().includes(q)||String(i.barcode||'').includes(q))
+    .forEach(i=>monthlyDraft[i.id]=0);
+  renderMonthlyFast();
+}
+
+function saveMonthlyFast(){
+  const y=window.scrollY;
+  const monthEl=document.getElementById('monthlyDate');
+  let month=monthEl?.value || '';
+  if(!month){
+    const d=new Date();
+    month=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    if(monthEl) monthEl.value=month;
+  }
+
+  const snapshot={
+    month,
+    savedAt:new Date().toISOString(),
+    items:items.map(i=>({
+      id:i.id,
+      name:i.name,
+      unit:i.unit,
+      cat:i.cat,
+      qty:Number(monthlyDraft[i.id]??i.qty),
+      barcode:i.barcode||''
+    }))
+  };
+
+  const idx=snapshots.findIndex(s=>s.month===month);
+  if(idx>=0) snapshots[idx]=snapshot;
+  else snapshots.push(snapshot);
+
+  snapshots.sort((a,b)=>b.month.localeCompare(a.month));
+  localStorage.setItem('inventoryBuddySnapshots',JSON.stringify(snapshots));
+  if(typeof scheduleCloudSync==='function')scheduleCloudSync();
+
+  renderMonthly();
+  alert(`Monthly inventory for ${month} saved!`);
+  requestAnimationFrame(()=>window.scrollTo(0,y));
+}
+</script>
+<script>
+function populateOrderCategories(){
+ const select=document.getElementById('orderCategory'); if(!select)return;
+ const current=select.value;
+ const allCats=['Food','Paper','Cleaning','Beverage','Supplies','Other'];
+  const cats=allCats;
+ select.innerHTML='<option value="">All Categories</option>'+cats.map(c=>'<option value="'+esc(c)+'">'+esc(c)+'</option>').join('');
+ if(cats.some(c=>c.toLowerCase()===current.toLowerCase())) {
+   select.value=cats.find(c=>c.toLowerCase()===current.toLowerCase())||'';
+ }
+}
+function getSupplierName(id){
+ const s=suppliers.find(x=>String(x.id)===String(id));
+ return s?s.name:'No supplier';
+}
+function populateSupplierSelect(){
+ const select=document.getElementById('supplierId'); if(!select)return;
+ const current=select.value||'';
+ select.innerHTML='<option value="">No supplier assigned</option>'+suppliers.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(s=>'<option value="'+esc(String(s.id))+'">'+esc(s.name)+'</option>').join('');
+ if(suppliers.some(s=>String(s.id)===current)) select.value=current;
+}
+function saveSupplier(){
+ const name=document.getElementById('supplierName').value.trim();
+ const contact=document.getElementById('supplierContact').value.trim();
+ if(!name)return alert('Please enter a supplier name.');
+ if(editingSupplierId){
+   const s=suppliers.find(x=>String(x.id)===String(editingSupplierId));
+   if(s){s.name=name;s.contact=contact;}
+ }else{
+   suppliers.push({id:Date.now(),name,contact});
+ }
+ localStorage.setItem('inventoryBuddySuppliers',JSON.stringify(suppliers));
+ if(typeof scheduleCloudSync==='function')scheduleCloudSync();
+ editingSupplierId=null;
+ document.getElementById('supplierName').value='';
+ document.getElementById('supplierContact').value='';
+ populateSupplierSelect();
+ renderSuppliers();
+}
+function editSupplier(id){
+ const s=suppliers.find(x=>String(x.id)===String(id)); if(!s)return;
+ editingSupplierId=id;
+ document.getElementById('supplierName').value=s.name;
+ document.getElementById('supplierContact').value=s.contact||'';
+ document.getElementById('supplierName').focus();
+}
+function cancelSupplierEdit(){
+ editingSupplierId=null;
+ const n=document.getElementById('supplierName'),c=document.getElementById('supplierContact');
+ if(n)n.value='';if(c)c.value='';
+}
+function deleteSupplier(id){
+ const s=suppliers.find(x=>String(x.id)===String(id)); if(!s)return;
+ if(!confirm('Delete '+s.name+'? Items assigned to this supplier will become unassigned.'))return;
+ suppliers=suppliers.filter(x=>String(x.id)!==String(id));
+ items.forEach(i=>{if(String(i.supplierId||'')===String(id))i.supplierId='';});
+ localStorage.setItem('inventoryBuddySuppliers',JSON.stringify(suppliers));
+ localStorage.setItem('inventoryBuddyV2',JSON.stringify(items));
+ populateSupplierSelect();renderSuppliers();render();
+}
+function renderSuppliers(){
+ const box=document.getElementById('supplierList'); if(!box)return;
+ if(!suppliers.length){box.innerHTML='<p class="small">No suppliers added yet.</p>';return;}
+ box.innerHTML=suppliers.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(s=>{
+   const count=items.filter(i=>String(i.supplierId||'')===String(s.id)).length;
+   return '<div class="supplier-row"><div><b>'+esc(s.name)+'</b>'+(s.contact?'<div class="small">'+esc(s.contact)+'</div>':'')+'<div class="small">'+count+' item'+(count===1?'':'s')+' assigned</div></div><div class="supplier-actions"><button type="button" class="secondary" onclick="editSupplier('+s.id+')">✏️ Edit</button><button type="button" class="danger" onclick="deleteSupplier('+s.id+')">Delete</button></div></div>';
+ }).join('');
+}
+
+function renderSmartOrders(){
+ const box=document.getElementById('smartOrderList'); if(!box)return;
+ populateOrderCategories();
+ const q=(document.getElementById('orderSearch')?.value||'').trim().toLowerCase();
+ const cat=(document.getElementById('orderCategory')?.value||'').trim().toLowerCase();
+ const data=(items||[]).filter(i=>{
+   const qty=Number(i.qty)||0, min=Number(i.min)||0;
+   const itemCat=String(i.cat||'').trim().toLowerCase();
+   const ordered=orderedItems.includes(String(i.id));
+   return !ordered && min>0 && qty<=min && (!q||String(i.name||'').toLowerCase().includes(q)||String(i.barcode||'').includes(q)) && (!cat||itemCat===cat);
+ });
+ if(!data.length){box.innerHTML='<p class="small">🎉 Nothing is currently waiting to be ordered.</p>';return;}
+ box.innerHTML='<table class="order-table"><thead><tr><th>Item</th><th>Current</th><th>Minimum</th><th>Order Qty</th><th></th></tr></thead><tbody>'+
+ data.map(i=>{
+   const qty=Number(i.qty)||0,min=Number(i.min)||0;
+   const orderQty=Number(i.orderQty)>0?Number(i.orderQty):Math.max(1,min-qty);
+   return '<tr><td><b>'+esc(i.name)+'</b><div class="small">'+esc(i.cat||'')+(i.barcode?' • '+esc(i.barcode):'')+(i.supplierId?' • '+esc(getSupplierName(i.supplierId)):'')+'</div></td><td>'+qty+' '+esc(i.unit||'')+'</td><td>'+min+' '+esc(i.unit||'')+'</td><td><b>'+orderQty+'</b> '+esc(i.unit||'')+'</td><td><button type="button" class="secondary" onclick="markOrdered('+i.id+')">✓ Mark Ordered</button></td></tr>';
+ }).join('')+'</tbody></table><div class="order-total">'+data.length+' item'+(data.length===1?'':'s')+' need ordering.</div>';
+}
+function markOrdered(id){
+ const sid=String(id);
+ const item=items.find(i=>String(i.id)===sid);
+ if(!item)return;
+ if(!orderedItems.includes(sid)) orderedItems.push(sid);
+ const orderQty=Number(item.orderQty)>0?Number(item.orderQty):Math.max(1,(Number(item.min)||0)-(Number(item.qty)||0));
+ orderHistory.unshift({id:Date.now(),itemId:sid,name:item.name,cat:item.cat,unit:item.unit,quantity:orderQty,orderedAt:new Date().toISOString()});
+ localStorage.setItem('inventoryBuddyOrdered',JSON.stringify(orderedItems));
+ localStorage.setItem('inventoryBuddyOrderHistory',JSON.stringify(orderHistory));
+ if(typeof scheduleCloudSync==='function')scheduleCloudSync();
+ renderSmartOrders();
+ render();
+ alert(item.name+' marked as ordered!');
+}
+function resetOrderedItems(){
+ orderedItems=[];
+ localStorage.setItem('inventoryBuddyOrdered','[]');
+ if(typeof scheduleCloudSync==='function')scheduleCloudSync();
+ renderSmartOrders();
+ alert('Ordered items have been reset and can appear on the order list again.');
+}
+function renderOrderHistory(){
+ const box=document.getElementById('orderHistoryList'); if(!box)return;
+ if(!orderHistory.length){box.innerHTML='<p class="small">No orders have been recorded yet.</p>';return;}
+ box.innerHTML=orderHistory.map(o=>{
+   const d=new Date(o.orderedAt);
+   const when=d.toLocaleString([], {month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+   return '<div class="item"><div class="row"><div><b>'+esc(o.name)+'</b><div class="small">'+esc(o.cat||'')+' • Order '+esc(o.quantity)+' '+esc(o.unit||'')+'</div><div class="small">Ordered '+esc(when)+'</div></div><span class="good">✓ Ordered</span></div></div>';
+ }).join('');
+}
+function clearOrderHistory(){
+ if(!orderHistory.length)return;
+ if(confirm('Clear all order history? This will not change your inventory.')){
+   orderHistory=[];
+   localStorage.setItem('inventoryBuddyOrderHistory','[]');
+   if(typeof scheduleCloudSync==='function')scheduleCloudSync();
+   renderOrderHistory();
+ }
+}
+
+function copySmartOrder(){
+  const q=(document.getElementById('orderSearch')?.value||'').trim().toLowerCase();
+  const cat=(document.getElementById('orderCategory')?.value||'').trim().toLowerCase();
+  const data=(items||[]).filter(i=>{
+    const qty=Number(i.qty)||0,min=Number(i.min)||0;
+    const itemCat=String(i.cat||'').trim().toLowerCase();
+    return !orderedItems.includes(String(i.id)) && min>0 && qty<=min && (!q||String(i.name||'').toLowerCase().includes(q)||String(i.barcode||'').includes(q)) && (!cat||itemCat===cat);
+  });
+  if(!data.length){alert('Nothing is currently at or below minimum stock.');return;}
+  const groups={};
+  data.forEach(i=>{const key=i.supplierId?getSupplierName(i.supplierId):'No Supplier Assigned';(groups[key] ||= []).push(i);});
+  const lines=['INVENTORY BUDDY ORDER LIST',''];
+  Object.keys(groups).sort().forEach(s=>{
+    lines.push('--- '+s+' ---');
+    groups[s].forEach(i=>{
+      const qty=Number(i.qty)||0,min=Number(i.min)||0;
+      const n=Number(i.orderQty)>0?Number(i.orderQty):Math.max(1,min-qty);
+      lines.push(i.name+' — Order '+n+' '+i.unit);
+    });
+    lines.push('');
+  });
+  const text=lines.join('\n').trim();
+  if(navigator.clipboard) navigator.clipboard.writeText(text).then(()=>alert('Order list copied!')).catch(()=>prompt('Copy this order list:',text));
+  else prompt('Copy this order list:',text);
+}
+
+let receiveFiles=[];
+let manualReceiveRows=[];
+function populateReceiveSupplier(){
+ const sel=document.getElementById('receiveSupplier'); if(!sel)return;
+ const current=sel.value;
+ sel.innerHTML='<option value="">No supplier selected</option>'+suppliers.map(s=>'<option value="'+esc(s.id)+'">'+esc(s.name)+'</option>').join('');
+ if(current) sel.value=current;
+}
+function addReceiveFiles(e){
+ const files=Array.from(e.target.files||[]); if(!files.length)return;
+ receiveFiles.push(...files); renderReceivePreview(); e.target.value='';
+}
+function renderReceivePreview(){
+ const box=document.getElementById('receivePreview'); if(!box)return;
+ box.innerHTML=receiveFiles.map((f,i)=>{const u=URL.createObjectURL(f);return '<div style="position:relative"><img src="'+u+'" alt="Order page '+(i+1)+'" style="width:100%;height:150px;object-fit:cover;border-radius:10px;border:1px solid #ddd"><button type="button" class="danger" style="position:absolute;right:4px;top:4px" onclick="removeReceiveFile('+i+')">✕</button><div class="small">Page '+(i+1)+' • '+esc(f.name||'photo')+'</div></div>';}).join('');
+}
+function removeReceiveFile(i){receiveFiles.splice(i,1);renderReceivePreview();}
+function clearReceivePhotos(){receiveFiles=[];renderReceivePreview();document.getElementById('receiveResults').innerHTML='';document.getElementById('receiveStatus').textContent='';}
+function normText(v){return String(v||'').toLowerCase().replace(/[^a-z0-9]+/g,'');}
+function candidateItems(text){
+ const low=normText(text);
+ return items.map(i=>{
+   let score=0;
+   if(i.barcode && low.includes(normText(i.barcode))) score+=100;
+   const n=normText(i.name); if(n.length>=4 && low.includes(n)) score+=60;
+   return {item:i,score};
+ }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score);
+}
+function enhanceForOCR(file){
+ return new Promise((resolve,reject)=>{
+   const img=new Image();
+   img.onload=()=>{
+     try{
+       const maxW=2200, scale=Math.min(1,maxW/img.naturalWidth);
+       const w=Math.max(1,Math.round(img.naturalWidth*scale)), h=Math.max(1,Math.round(img.naturalHeight*scale));
+       const c=document.createElement('canvas'); c.width=w;c.height=h;
+       const ctx=c.getContext('2d'); ctx.drawImage(img,0,0,w,h);
+       const data=ctx.getImageData(0,0,w,h); const d=data.data;
+       for(let i=0;i<d.length;i+=4){
+         const y=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+         const v=Math.max(0,Math.min(255,(y-128)*1.45+128));
+         d[i]=d[i+1]=d[i+2]=v;
+       }
+       ctx.putImageData(data,0,0);
+       c.toBlob(b=>b?resolve(b):reject(new Error('Could not prepare image')),'image/jpeg',0.92);
+     }catch(err){reject(err)}
+   };
+   img.onerror=()=>reject(new Error('Could not load image'));
+   img.src=URL.createObjectURL(file);
+ });
+}
+function cleanOCRLines(text){
+ return Array.from(new Set(String(text||'').split(/\r?\n/).map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean)));
+}
+function supplierFromText(text){
+ const t=String(text||'').toLowerCase();
+ if(t.includes('prairie farms')||t.includes('prairie'))return 'prairie';
+ if(t.includes('mccartney')||t.includes('mccartney produce'))return 'mccartney';
+ if(t.includes('ice cream warehouse'))return 'icecream';
+ return '';
+}
+function autoSelectSupplier(text){
+ const kind=supplierFromText(text); if(!kind)return;
+ const names=suppliers.map(s=>({s,n:String(s.name||'').toLowerCase()}));
+ let found=null;
+ if(kind==='prairie')found=names.find(x=>x.n.includes('prairie'));
+ if(kind==='mccartney')found=names.find(x=>x.n.includes('mccartney'));
+ if(kind==='icecream')found=names.find(x=>x.n.includes('ice cream')||x.n.includes('icecream'));
+ if(found)document.getElementById('receiveSupplier').value=found.s.id;
+}
+function extractOrderRows(text){
+ const lines=cleanOCRLines(text);
+ const rows=[];
+ const bad=/\b(route|invoice|customer|store|subtotal|balance|total|date|time|terms|warehouse|sales rep|delivery|signature|received by|page\b|pay your bill|special information|po\b|remit|sold to|bill to|deliver to|instructions|price|amount|description|product#|product description|upc code|cases units)\b/i;
+ const firstNum=/^([0-9]{4,8})(?:\s+|$)/;
+ for(const line of lines){
+   if(bad.test(line))continue;
+   const m=line.match(firstNum); if(!m)continue;
+   const product=m[1];
+   const nums=line.match(/\b\d+(?:\.\d+)?\b/g)||[];
+   if(nums.length<3)continue;
+   const alpha=line.replace(/\b\d+(?:\.\d+)?\b/g,' ').replace(/[|:;]+/g,' ').replace(/\s+/g,' ').trim();
+   if(alpha.length<4 || !/[a-zA-Z]{2,}/.test(alpha))continue;
+   let qty='';
+   if(nums.length>=4) qty=nums[nums.length-3];
+   else qty=nums[nums.length-1];
+   const desc=line.replace(new RegExp('^\\s*'+product+'\\b'),'').replace(/\b\d+(?:\.\d+)?\b/g,' ').replace(/\s+/g,' ').trim();
+   if(!desc || desc.length<2)continue;
+   rows.push({product,description:desc,qty,raw:line});
+ }
+ const seen=new Set();
+ return rows.filter(r=>{const k=normText(r.product)+'|'+normText(r.description);if(seen.has(k))return false;seen.add(k);return true;}).slice(0,150);
+}
+async function ocrFile(file,index,total,status){
+ const texts=[]; const wordSets=[];
+ status.textContent='Reading page '+index+' of '+total+'…';
+ const r1=await Tesseract.recognize(file,'eng',{logger:m=>{if(m.status==='recognizing text')status.textContent='Reading page '+index+' of '+total+'… '+Math.round((m.progress||0)*100)+'%';}});
+ texts.push(r1.data.text||'');
+ wordSets.push(r1.data.words||[]);
+ try{
+   const enhanced=await enhanceForOCR(file);
+   const r2=await Tesseract.recognize(enhanced,'eng');
+   texts.push(r2.data.text||'');
+   wordSets.push(r2.data.words||[]);
+ }catch(e){console.warn('Enhanced OCR pass skipped',e);}
+ // Keep a single OCR pass for word coordinates. Combining passes duplicates words and can shift rows.
+ let bestWords=[]; let bestScore=-1;
+ for(const ws of wordSets){
+   const usable=ws.filter(w=>w && String(w.text||'').trim());
+   const confs=usable.map(w=>Number(w.confidence??w.conf??0)).filter(n=>Number.isFinite(n));
+   const avg=confs.length ? confs.reduce((a,b)=>a+b,0)/confs.length : 0;
+   const score=avg + Math.min(20, usable.length/100);
+   if(score>bestScore){bestScore=score;bestWords=usable;}
+ }
+ return {text:texts.join('\n'),words:bestWords};
+}
+async function cropOCRNumber(file, x, y, w=52, h=28){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=async()=>{
+      try{
+        const scale=4;
+        const c=document.createElement('canvas');
+        c.width=Math.max(1,Math.round(w*scale)); c.height=Math.max(1,Math.round(h*scale));
+        const ctx=c.getContext('2d');
+        ctx.imageSmoothingEnabled=false;
+        ctx.drawImage(img, Math.max(0,x-w/2), Math.max(0,y-h/2), w, h, 0,0,c.width,c.height);
+        const d=ctx.getImageData(0,0,c.width,c.height), px=d.data;
+        for(let i=0;i<px.length;i+=4){
+          const g=0.299*px[i]+0.587*px[i+1]+0.114*px[i+2];
+          const v=g>165?255:(g<95?0:Math.round((g-95)*255/70));
+          px[i]=px[i+1]=px[i+2]=v;
+        }
+        ctx.putImageData(d,0,0);
+        c.toBlob(async blob=>{
+          if(!blob)return resolve('');
+          try{
+            const r=await Tesseract.recognize(blob,'eng',{config:{tessedit_pageseg_mode:'7',tessedit_char_whitelist:'0123456789.'}});
+            const m=String(r.data.text||'').match(/\d+(?:\.\d+)?/);
+            resolve(m?m[0]:'');
+          }catch(e){resolve('');}
+        },'image/png');
+      }catch(e){reject(e)}
+    };
+    img.onerror=()=>resolve('');
+    img.src=URL.createObjectURL(file);
+  });
+}
+function makeWordLines(words){
+ const clean=words.map(w=>({text:String(w.text||'').trim(),conf:Number(w.confidence??w.conf??0),x:Number(w.bbox?.x0??w.bbox?.left??0),y:Number(w.bbox?.y0??w.bbox?.top??0),x1:Number(w.bbox?.x1??w.bbox?.right??0),y1:Number(w.bbox?.y1??w.bbox?.bottom??0)})).filter(w=>w.text && w.conf>=0);
+ const sorted=[...clean].sort((a,b)=>a.y-b.y||a.x-b.x), lines=[];
+ for(const w of sorted){
+   let best=null,bd=Infinity;
+   for(const L of lines){const dy=Math.abs(L.y-w.y);if(dy<=6 && dy<bd){best=L;bd=dy;}}
+   if(!best){best={y:w.y,words:[]};lines.push(best)}
+   best.words.push(w);
+ }
+ lines.forEach(L=>L.words.sort((a,b)=>a.x-b.x));
+ return {clean,lines};
+}
+function nearestHeader(clean, re){ return clean.filter(w=>re.test(w.text)).sort((a,b)=>a.y-b.y)[0]||null; }
+async function extractOrderRowsFromWords(words, file, status){
+ if(!Array.isArray(words)||!words.length) return [];
+ const {clean,lines}=makeWordLines(words);
+ const qtyH=nearestHeader(clean,/^qty$/i) || nearestHeader(clean,/^quantity$/i);
+ const unitsH=nearestHeader(clean,/^units?$/i);
+ const casesH=nearestHeader(clean,/^cases?$/i);
+ const caseUnitH=nearestHeader(clean,/^case\/unit$/i);
+ const anchor=qtyH||unitsH||caseUnitH||casesH;
+ if(!anchor) return [];
+ const headerY=anchor.y;
+ const salesY=clean.filter(w=>/^sales$/i.test(w.text)).map(w=>w.y);
+ const footerY=clean.filter(w=>/^(containers?|total|subtotal|balance)$/i.test(w.text)).map(w=>w.y);
+ const startY=salesY.length?Math.max(...salesY)+10:headerY+18;
+ let endY=Infinity; for(const y of footerY) if(y>startY) endY=Math.min(endY,y-4);
+ // Product code is normally the left-most 4-8 digit token in a row.
+ const rows=[];
+ for(const L of lines){
+   if(L.y<startY || L.y>endY) continue;
+   const numeric=L.words.filter(w=>/^\d{4,8}$/.test(w.text));
+   const codeWord=numeric.find(w=>w.x < anchor.x-35);
+   if(!codeWord) continue;
+   const product=codeWord.text.replace(/^0+(?=\d{4,8}$)/,'')||codeWord.text;
+   const descWords=L.words.filter(w=>w.x>codeWord.x+20 && w.x < (casesH?.x ?? unitsH?.x ?? qtyH?.x ?? anchor.x)-20 && !/^\d+(?:\.\d+)?$/.test(w.text));
+   let description=descWords.map(w=>w.text).join(' ').replace(/\s+/g,' ').trim();
+   description=description.replace(/^[|:;,.-]+|[|:;,.-]+$/g,'').trim();
+   if(!description || !/[A-Za-z]{2,}/.test(description)) continue;
+   if(/\b(route|invoice|customer|store|subtotal|balance|total|date|time|terms|warehouse|sales|signature|received|page|price|amount|description|product|special|information|remit|sold|bill|deliver|instructions|containers?)\b/i.test(description)) continue;
+   const yCenter=L.y+((L.words.reduce((a,w)=>a+w.y1,0)/L.words.length)-L.y)/2;
+   const qtyX=qtyH?.x ?? null, unitsX=unitsH?.x ?? null, casesX=casesH?.x ?? caseUnitH?.x ?? null;
+   rows.push({product,description,raw:L.words.map(w=>w.text).join(' '),y:yCenter,qtyX,unitsX,casesX,ocrSource:'column crop'});
+ }
+ const seen=new Set();
+ const unique=rows.filter(r=>{const k=r.product+'|'+normText(r.description);if(seen.has(k))return false;seen.add(k);return true;}).slice(0,150);
+ // Read the quantity/cases/units columns from small crops around the detected row.
+ for(let i=0;i<unique.length;i++){
+   const r=unique[i];
+   const order=[];
+   if(r.qtyX!=null) order.push(['qty',r.qtyX]);
+   if(r.unitsX!=null) order.push(['units',r.unitsX]);
+   if(r.casesX!=null) order.push(['cases',r.casesX]);
+   const vals={};
+   for(const [kind,x] of order){
+     status.textContent=`Checking product ${i+1} of ${unique.length}…`;
+     vals[kind]=await cropOCRNumber(file,x,r.y,48,30);
+   }
+   let qty=vals.qty || vals.units || vals.cases || '';
+   let derivedFromAmount=false;
+   // Strong fallback for invoice tables: when OCR merges the Qty column,
+   // the last two decimal numbers on a sales row are usually unit price and line amount.
+   // Amount / price gives the shipped quantity and is much more reliable than
+   // guessing from a merged numeric token.
+   if(!qty || /^0{0,1}\d{6,}$/.test(String(qty).replace(/\D/g,''))){
+     const decs=(r.raw.match(/\b\d+\.\d{2,4}\b/g)||[]);
+     if(decs.length>=2){
+       const price=parseFloat(decs[decs.length-2]);
+       const amount=parseFloat(decs[decs.length-1]);
+       if(Number.isFinite(price) && price>0 && Number.isFinite(amount) && amount>0){
+         const calc=amount/price;
+         if(Number.isFinite(calc) && calc>0 && calc<100000){
+           const rounded=Math.abs(calc-Math.round(calc))<0.03 ? Math.round(calc) : Math.round(calc*100)/100;
+           qty=String(rounded); derivedFromAmount=true;
+         }
+       }
+     }
+   }
+   if(!qty){
+     const rawNums=(r.raw.match(/\b\d+(?:\.\d+)?\b/g)||[]).filter(n=>n!==r.product);
+     if(rawNums.length>=3) qty=rawNums[rawNums.length-3];
+   }
+   r.qty=qty;
+   const qn=parseFloat(qty); const un=parseFloat(vals.units||''); const cn=parseFloat(vals.cases||'');
+   const supplierHint=(document.getElementById('receiveSupplier')?.selectedOptions?.[0]?.textContent||'').toLowerCase();
+   const rawLower=r.raw.toLowerCase();
+   if(supplierHint.includes('mccartney') || rawLower.includes('mccartney')) r.unit='cases';
+   else if(Number.isFinite(un) && un>0) r.unit='units';
+   else if(Number.isFinite(cn) && cn>0) r.unit='cases';
+   else r.unit='units';
+   r.qtySource=derivedFromAmount?'calculated from amount ÷ price':'';
+   delete r.y; delete r.qtyX; delete r.unitsX; delete r.casesX;
+ }
+ return unique;
+}
+async function processReceiveOrder(){
+ if(!receiveFiles.length){alert('Add at least one order photo first.');return;}
+ const status=document.getElementById('receiveStatus'),results=document.getElementById('receiveResults');
+ status.textContent='Reading '+receiveFiles.length+' photo(s)… This can take a little while.'; results.innerHTML='';
+ let allText=''; const allRows=[];
+ try{
+   for(let i=0;i<receiveFiles.length;i++){
+     const r=await ocrFile(receiveFiles[i],i+1,receiveFiles.length,status);
+     allText+='\n'+r.text;
+     const rows=await extractOrderRowsFromWords(r.words,receiveFiles[i],status);
+     allRows.push(...rows);
+   }
+   autoSelectSupplier(allText);
+   renderReceiveResults(allText,allRows);
+   status.textContent='Done. Review the detected items below before updating inventory.';
+ }catch(err){console.error(err);status.textContent='Could not read the order. You can still use the photos and enter received quantities manually.';alert('The order could not be read. Try a clearer photo with good lighting.');}
+}
+function findBestRowMatch(row){
+ const p=normText(row.product), d=normText(row.description);
+ return items.map(i=>{
+   let score=0;
+   if(i.barcode && normText(i.barcode)===p)score+=200;
+   const n=normText(i.name);
+   if(n && d.includes(n))score+=80;
+   else if(n && n.split(/\s+/).filter(Boolean).some(w=>w.length>3&&d.includes(w)))score+=20;
+   return {item:i,score};
+ }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score)[0]||null;
+}
+function unitOptions(){return '<option>cases</option><option>crates</option><option>each</option><option>units</option><option>lbs</option><option>boxes</option><option>packs</option><option>bags</option><option>other</option>'}
+function inferPackSize(row){
+ const d=String(row.description||'');
+ const m=d.match(/(\d+(?:\.\d+)?)\s*\/\s*(?:CS|CASE|CASES)\b/i) || d.match(/(\d+(?:\.\d+)?)\s*(?:COUNT|CT)\b/i);
+ return m?m[1]:'';
+}
+function conversionText(receiptUnit,targetUnit,pack){
+ const ru=String(receiptUnit||'').toLowerCase(), tu=String(targetUnit||'').toLowerCase(), p=Number(pack);
+ if(ru===tu) return 'No conversion needed.';
+ const packageUnits=['cases','crates','boxes']; if(!((ru==='units'&&packageUnits.includes(tu))||(packageUnits.includes(ru)&&tu==='units'))) return 'This unit conversion is not automatic. Choose the same unit or enter the quantity you want to add.';
+ if(!(p>0)) return 'Enter units per case to convert between units and cases.';
+ const qty=Number(arguments[3]||0);
+ const converted=ru==='units'&&packageUnits.includes(tu)?qty/p:qty*p;
+ return 'Will add about '+(Number.isInteger(converted)?converted:converted.toFixed(2))+' '+tu+'.';
+}
+function populateManualItemSelect(){
+ const sel=document.getElementById('manualItem'); if(!sel)return;
+ // Re-read the latest inventory so Manual Entry always sees items added/edited during this session.
+ try{items=JSON.parse(localStorage.getItem('inventoryBuddyV2')||'[]')}catch(e){items=[]}
+ const current=sel.value;
+ const rows=Array.isArray(items)?items:[];
+ sel.innerHTML='<option value="">Choose an existing item...</option>'+rows.map(i=>'<option value="'+esc(i.id)+'">'+esc(i.name)+(i.barcode?' • '+esc(i.barcode):'')+' • '+esc(i.unit||'')+(Number(i.packSize)>0?' • '+esc(i.packSize)+'/pkg':'')+'</option>').join('');
+ if(current && rows.some(i=>String(i.id)===String(current))) sel.value=current;
+ const chosen=rows.find(i=>String(i.id)===String(sel.value));
+ const ru=document.getElementById('manualReceiptUnit'); if(ru && chosen) ru.value=chosen.unit||'units';
+}
+function updateManualConversion(){
+ const sel=document.getElementById('manualItem'), q=document.getElementById('manualQty'), ru=document.getElementById('manualReceiptUnit'), box=document.getElementById('manualConversion');
+ if(!sel||!box)return;
+ const item=items.find(i=>String(i.id)===String(sel.value));
+ if(!item){box.textContent='Choose an item to use its saved package size.';return;}
+ const pack=Number(item.packSize||0), qty=Number(q?.value||0), receiptUnit=ru?.value||item.unit||'units', target=item.unit||receiptUnit;
+ if(qty>0){const conv=receiveConvertedQty(qty,receiptUnit,target,pack); box.textContent=conv===null?'Unit conversion needs a matching unit or a saved package size.':('Will add '+(Number.isInteger(conv)?conv:conv.toFixed(2))+' '+target+(pack>0?' • '+pack+' '+target+' per package':'')+'.');}
+ else box.textContent='Saved package size: '+(pack||'not set')+' '+(item.unit||'')+' per package.';
+}
+function addManualReceiveItem(){
+ const sel=document.getElementById('manualItem'), q=document.getElementById('manualQty'), ru=document.getElementById('manualReceiptUnit');
+ const item=items.find(i=>String(i.id)===String(sel?.value)); const qty=Number(q?.value||0), receiptUnit=ru?.value||item?.unit||'units';
+ if(!item){alert('Choose an inventory item first.');return;} if(!Number.isFinite(qty)||qty<=0){alert('Enter a received quantity greater than 0.');return;}
+ manualReceiveRows.push({itemId:item.id,qty,receiptUnit}); q.value=''; renderManualReview(); updateManualConversion();
+}
+function renderManualReview(){
+ const box=document.getElementById('manualReview'); if(!box)return;
+ if(!manualReceiveRows.length){box.innerHTML='';return;}
+ let html='<div class="small"><b>Manual items waiting for confirmation:</b></div>';
+ manualReceiveRows.forEach((r,idx)=>{const item=items.find(i=>String(i.id)===String(r.itemId)); if(!item)return; const pack=Number(item.packSize||0), target=item.unit||r.receiptUnit, final=receiveConvertedQty(r.qty,r.receiptUnit,target,pack); html+='<div class="manual-row"><div><b>'+esc(item.name)+'</b> — '+esc(r.qty)+' '+esc(r.receiptUnit)+'</div><div class="small">Will add: '+(final===null?'Check unit/pack size':(Number.isInteger(final)?final:final.toFixed(2))+' '+esc(target))+'</div><button type="button" class="danger" onclick="removeManualReceiveItem('+idx+')">Remove</button></div>';});
+ html+='<button type="button" class="primary" onclick="confirmManualReceiveItems()">✅ Confirm Manual Items</button>'; box.innerHTML=html;
+}
+function removeManualReceiveItem(i){manualReceiveRows.splice(i,1);renderManualReview();}
+function confirmManualReceiveItems(){
+  const rows=Array.isArray(manualReceiveRows)?manualReceiveRows.slice():[];
+  if(!rows.length){alert('Nothing is waiting for confirmation.');return;}
+  try{
+    let changed=0, added=0, skipped=0;
+    for(const r of rows){
+      const item=items.find(i=>String(i.id)===String(r.itemId));
+      if(!item){skipped++;continue;}
+      const pack=Number(item.packSize||0);
+      const target=item.unit||r.receiptUnit;
+      const final=receiveConvertedQty(Number(r.qty)||0, String(r.receiptUnit||'units'), String(target||r.receiptUnit||'units'), pack);
+      if(final===null || !Number.isFinite(final) || final<0){skipped++;continue;}
+      item.qty=(Number(item.qty)||0)+final;
+      changed++;
+    }
+    if(changed===0 && added===0){alert('Nothing was updated. Check the item, quantity, and units.');return;}
+    localStorage.setItem('inventoryBuddyV2',JSON.stringify(items));
+    manualReceiveRows=[];
+    const box=document.getElementById('manualReview');
+    if(box) box.innerHTML='<div class="card" style="margin-top:10px"><b>✅ Inventory updated successfully!</b><div class="small">'+changed+' existing item(s) updated.'+(skipped?' '+skipped+' skipped.':'')+'</div></div>';
+    // Force the page to reload from the saved localStorage instead of calling the large render/show chain.
+    setTimeout(()=>window.location.reload(),250);
+  }catch(err){
+    console.error('Manual receive update failed:',err);
+    alert('Could not update inventory. '+(err?.message||'Please try again.'));
+  }
+}
+
+function renderReceiveResults(text,rows){
+ const results=document.getElementById('receiveResults');
+ let html='<div class="card" style="margin:0 0 10px"><b>Review Before Updating</b><p class="small">Check every item, received quantity, inventory unit, and pack size. Nothing changes until you confirm.</p></div>';
+ if(!rows.length){
+   html+='<div class="card"><b>⚠️ No clear product rows found</b><p class="small">Try a closer, straight-on photo with the order page filling most of the picture. You can still enter received items manually below.</p></div>';
+ } else {
+   html+='<div class="card" style="margin:0 0 10px"><div class="small">Detected '+rows.length+' possible product row(s).</div>';
+   rows.forEach((r,idx)=>{
+     const existing=findBestRowMatch(r);
+     const receiptUnit=r.unit||'units';
+     const targetUnit=existing?.item?.unit||receiptUnit;
+     const pack=(existing?.item?.packSize>0?existing.item.packSize:inferPackSize(r));
+     html+='<div class="item">';
+     html+='<div class="small"><b>Product #:</b> '+esc(r.product)+'<br><b>Read:</b> '+esc(r.description)+'</div>';
+     if(existing){
+       html+='<div class="row" style="margin-top:6px"><div><b>'+esc(existing.item.name)+'</b><div class="small">Current: '+esc(existing.item.qty)+' '+esc(existing.item.unit)+(existing.item.barcode?' • Barcode '+esc(existing.item.barcode):'')+'</div></div><span class="badge">Auto matched</span></div>';
+       html+='<input type="hidden" id="recvId'+idx+'" value="'+esc(existing.item.id)+'">';
+     }else{
+       html+='<label>Inventory item (optional)</label><select id="recvMap'+idx+'"><option value="">Add as new item</option>'+items.map(i=>'<option value="'+esc(i.id)+'">'+esc(i.name)+(i.barcode?' • '+esc(i.barcode):'')+'</option>').join('')+'</select>';
+       html+='<label>New item name</label><input id="newName'+idx+'" value="'+esc(r.description)+'">';
+       html+='<label>Product / barcode</label><input id="newProd'+idx+'" value="'+esc(r.product)+'">';
+     }
+     html+='<label>Received quantity <span class="small">(from receipt'+(r.qtySource?' • '+esc(r.qtySource):'')+')</span></label><input id="recvQty'+idx+'" type="number" min="0" step="0.01" value="'+esc(r.qty||'')+'">';
+     html+='<div style="margin-top:10px;padding:10px;border:1px solid #dbeafe;background:#f8fbff;border-radius:12px"><b>📦 Inventory Conversion</b><div class="small">This tells Inventory Buddy how the receipt quantity should be added to your inventory. The package size belongs to this specific item.</div>';
+     html+='<label>Receipt unit</label><select id="recvReceiptUnit'+idx+'">'+unitOptions()+'</select>';
+     html+='<label>Inventory update unit</label><select id="recvUnit'+idx+'">'+unitOptions()+'</select>';
+     html+='<label>Items per package <span class="small">(for crates/cases/boxes)</span></label><input id="recvPack'+idx+'" type="number" min="0" step="0.01" value="'+esc(pack)+'" placeholder="Example: 50">';
+     html+='<label style="margin-top:10px"><input id="recvBreakdown'+idx+'" type="checkbox" style="width:auto;margin-right:6px"> Use package breakdown for this delivery</label>';
+     html+='<div id="recvBreakdownBox'+idx+'" class="hidden" style="margin-top:8px;padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px">';
+     html+='<div class="small">Use this when you have full packages plus one short/partial package.</div>';
+     html+='<label>Full packages received</label><input id="recvFull'+idx+'" type="number" min="0" step="1" value="0">';
+     html+='<label>Loose/partial units received</label><input id="recvPartial'+idx+'" type="number" min="0" step="0.01" value="0">';
+     html+='<div id="recvBreakdownTotal'+idx+'" class="small" style="margin-top:5px"></div></div>';
+     html+='<div id="recvConversion'+idx+'" class="small" style="margin-top:5px"></div>';
+     html+='<div class="small" style="margin-top:5px">Raw row: '+esc(r.raw)+'</div>';
+     html+='</div>';
+   });
+   html+='<button type="button" class="primary" onclick="confirmAllReceiveRows('+rows.length+')">✅ Confirm & Update Inventory</button></div>';
+ }
+ html+='<details class="card" style="margin-top:10px"><summary>View text read from the order</summary><pre style="white-space:pre-wrap;font-size:12px;max-height:300px;overflow:auto">'+esc(text)+'</pre></details>';
+ results.innerHTML=html;
+ rows.forEach((r,idx)=>{
+   const ru=document.getElementById('recvReceiptUnit'+idx), u=document.getElementById('recvUnit'+idx), q=document.getElementById('recvQty'+idx), p=document.getElementById('recvPack'+idx), c=document.getElementById('recvConversion'+idx), b=document.getElementById('recvBreakdown'+idx), bb=document.getElementById('recvBreakdownBox'+idx), f=document.getElementById('recvFull'+idx), part=document.getElementById('recvPartial'+idx), bt=document.getElementById('recvBreakdownTotal'+idx);
+   if(ru) ru.value=r.unit||'units';
+   const existing=findBestRowMatch(r);
+   const syncFromInventoryItem=(itemId)=>{
+     const sel=document.getElementById('recvMap'+idx);
+     const chosen=items.find(it=>String(it.id)===String(itemId));
+     if(!chosen) return;
+     if(u) u.value=chosen.unit||r.unit||'units';
+     if(p) p.value=(Number(chosen.packSize)>0?chosen.packSize:inferPackSize(r));
+     refresh();
+   };
+   if(u) u.value=existing?.item?.unit||r.unit||'units';
+   if(p && (!p.value || Number(p.value)===0)) p.value=(existing?.item?.packSize>0?existing.item.packSize:inferPackSize(r));
+   const mapSel=document.getElementById('recvMap'+idx);
+   if(mapSel){
+     mapSel.addEventListener('change',()=>{
+       if(mapSel.value) syncFromInventoryItem(mapSel.value);
+       else {
+         if(u) u.value=r.unit||'units';
+         if(p) p.value=inferPackSize(r);
+         refresh();
+       }
+     });
+   }
+   const refresh=()=>{
+     const pack=Number(p?.value||0);
+     const useBreak=b?.checked;
+     if(bb) bb.classList.toggle('hidden',!useBreak);
+     if(useBreak){
+       const full=Math.max(0,Number(f?.value||0)); const loose=Math.max(0,Number(part?.value||0));
+       const total=(pack>0?full*pack:0)+loose;
+       if(bt) bt.textContent=pack>0?('Actual receipt total: '+total+' '+(ru?.value||'units')):'Enter units per package to calculate the full-package portion.';
+       if(c) c.textContent=conversionText(ru?.value,u?.value,pack,total);
+     }else{
+       if(c) c.textContent=conversionText(ru?.value,u?.value,pack,q?.value);
+     }
+   };
+   [ru,u,q,p,f,part].forEach(el=>el&&el.addEventListener('input',refresh));
+   [ru,u,b].forEach(el=>el&&el.addEventListener('change',refresh));
+   refresh();
+ });
+}
+function receiveConvertedQty(receiptQty,receiptUnit,targetUnit,pack){
+ const q=Number(receiptQty), p=Number(pack), ru=String(receiptUnit||'').toLowerCase(), tu=String(targetUnit||'').toLowerCase();
+ if(!Number.isFinite(q)||q<0) return null;
+ if(ru===tu) return q;
+ const packageUnits=['cases','crates','boxes'];
+ if(ru==='units'&&packageUnits.includes(tu)) return p>0?q/p:null;
+ if(packageUnits.includes(ru)&&tu==='units') return p>0?q*p:null;
+ return null;
+}
+function confirmAllReceiveRows(count){
+ let changed=0, added=0, skipped=0;
+ const problems=[];
+ for(let n=0;n<count;n++){
+   const qtyEl=document.getElementById('recvQty'+n), ruEl=document.getElementById('recvReceiptUnit'+n), uEl=document.getElementById('recvUnit'+n), pEl=document.getElementById('recvPack'+n);
+   if(!qtyEl||qtyEl.value===''){skipped++;continue;}
+   let receiptQty=Number(qtyEl.value), receiptUnit=ruEl?.value||'units', targetUnit=uEl?.value||receiptUnit, pack=Number(pEl?.value||0);
+   const useBreak=document.getElementById('recvBreakdown'+n)?.checked;
+   if(useBreak){
+     const full=Math.max(0,Number(document.getElementById('recvFull'+n)?.value||0));
+     const loose=Math.max(0,Number(document.getElementById('recvPartial'+n)?.value||0));
+     if(pack<=0){skipped++;problems.push('Row '+(n+1)+': enter Units per package before using package breakdown.');continue;}
+     receiptQty=full*pack+loose;
+   }
+   const finalQty=receiveConvertedQty(receiptQty,receiptUnit,targetUnit,pack);
+   if(finalQty===null||!Number.isFinite(finalQty)||finalQty<0){skipped++;problems.push('Row '+(n+1)+': choose matching units or enter Units per case for units/cases conversion.');continue;}
+   const mapped=document.getElementById('recvMap'+n)?.value||'';
+   const id=document.getElementById('recvId'+n)?.value||mapped;
+   if(id){
+     const item=items.find(i=>String(i.id)===String(id));
+     if(item){
+       if(String(item.unit||'')!==String(targetUnit||'')) item.unit=targetUnit;
+       if((targetUnit==='cases'||targetUnit==='crates'||targetUnit==='boxes') && pack>0) item.packSize=pack;
+       item.qty=(Number(item.qty)||0)+finalQty; changed++; continue;
+     }
+   }
+   const name=document.getElementById('newName'+n)?.value.trim();
+   const prod=document.getElementById('newProd'+n)?.value.trim();
+   if(name){
+     items.push({id:Date.now()+Math.random(),name,cat:'Other',category:'Other',unit:targetUnit,packSize:targetUnit==='cases'||targetUnit==='crates'||targetUnit==='boxes'?pack:0,qty:finalQty,min:0,orderQty:0,barcode:prod,supplierId:document.getElementById('receiveSupplier')?.value||''});
+     added++;
+   }else skipped++;
+ }
+ if(!changed&&!added){alert(problems.length?problems.join('\n'):'Nothing was updated. Check the item names and quantities first.');return;}
+ persist();
+ let msg='<div class="small">'+changed+' existing item(s) updated and '+added+' new item(s) added.'+(skipped?' '+skipped+' row(s) skipped.':'')+'</div>';
+ if(problems.length) msg+='<div class="small" style="margin-top:6px">'+esc(problems.join(' • '))+'</div>';
+ document.getElementById('receiveResults').insertAdjacentHTML('afterbegin','<div class="card" style="margin:0 0 10px"><b>✅ Inventory updated</b>'+msg+'</div>');
+}
+</script>
+<script>
+// Inventory Buddy cloud sync — Supabase
+const SUPABASE_URL='https://sqdrqqkvocpivwoyjfh.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY='sb_publishable_BYiXjevJs_a8lB9ZOrWipw_gI-3C4CO';
+const inventoryBuddySupabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+let cloudReady=false;
+let cloudSyncTimer=null;
+let cloudSyncBusy=false;
+function cloudStatus(text,good=false){const el=document.getElementById('cloudStatus');if(el){el.textContent=text;el.style.color=good?'#15803d':'';}}
+function cloudUuid(){return (crypto&&crypto.randomUUID)?crypto.randomUUID():('xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0,v=c==='x'?r:(r&3|8);return v.toString(16)}));}
+function ensureCloudIds(){
+ const supplierMap=new Map();
+ suppliers=(suppliers||[]).map(s=>{const old=String(s.id);if(!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(old))s.id=cloudUuid();supplierMap.set(old,String(s.id));return s;});
+ items=(items||[]).map(i=>{const old=String(i.id);if(!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(old))i.id=cloudUuid();if(i.supplierId&&supplierMap.has(String(i.supplierId)))i.supplierId=supplierMap.get(String(i.supplierId));return i;});
+ orderedItems=(orderedItems||[]).map(id=>{const found=items.find(i=>String(i.id)===String(id));return found?String(found.id):String(id);});
+ orderHistory=(orderHistory||[]).map(o=>{const found=items.find(i=>String(i.id)===String(o.itemId));if(found)o.itemId=String(found.id);return o;});
+ localStorage.setItem('inventoryBuddyV2',JSON.stringify(items));localStorage.setItem('inventoryBuddySuppliers',JSON.stringify(suppliers));localStorage.setItem('inventoryBuddyOrdered',JSON.stringify(orderedItems));localStorage.setItem('inventoryBuddyOrderHistory',JSON.stringify(orderHistory));
+}
+function scheduleCloudSync(){if(!cloudReady)return;clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(()=>syncToCloud(),500);}
+async function syncToCloud(){
+ if(!cloudReady||cloudSyncBusy)return;const {data:{user}}=await inventoryBuddySupabase.auth.getUser();if(!user)return;cloudSyncBusy=true;
+ try{
+  ensureCloudIds();
+  for(const table of ['order_history','ordered_items','monthly_inventory','inventory_items','suppliers']){const {error}=await inventoryBuddySupabase.from(table).delete().eq('user_id',user.id);if(error)throw error;}
+  if(suppliers.length){const {error}=await inventoryBuddySupabase.from('suppliers').insert(suppliers.map(s=>({id:String(s.id),user_id:user.id,name:String(s.name||''),contact:String(s.contact||'')})));if(error)throw error;}
+  if(items.length){const {error}=await inventoryBuddySupabase.from('inventory_items').insert(items.map(i=>({id:String(i.id),user_id:user.id,name:String(i.name||''),category:String(i.cat||i.category||'Other'),package_type:String(i.unit||'cases'),items_per_package:Number(i.packSize)||1,quantity:Number(i.qty)||0,minimum_stock:Number(i.min)||0,normal_order_quantity:Number(i.orderQty)||0,barcode:i.barcode?String(i.barcode):null,supplier_id:i.supplierId?String(i.supplierId):null})));if(error)throw error;}
+  if(orderHistory.length){const {error}=await inventoryBuddySupabase.from('order_history').insert(orderHistory.map(o=>({user_id:user.id,inventory_item_id:o.itemId?String(o.itemId):null,item_name:String(o.name||''),quantity:Number(o.quantity)||0,supplier_id:null,ordered_at:o.orderedAt||new Date().toISOString()})));if(error)throw error;}
+  if(orderedItems.length){const {error}=await inventoryBuddySupabase.from('ordered_items').insert(orderedItems.map(id=>({user_id:user.id,inventory_item_id:String(id)})));if(error)throw error;}
+  if(business){const {error}=await inventoryBuddySupabase.from('user_settings').upsert({user_id:user.id,business_name:String(business.name||''),business_type:String(business.type||''),updated_at:new Date().toISOString()});if(error)throw error;}
+  if(snapshots.length){const rows=[];snapshots.forEach(s=>{(s.items||[]).forEach(x=>{const found=items.find(i=>String(i.id)===String(x.id));if(found)rows.push({user_id:user.id,inventory_item_id:String(found.id),inventory_month:s.month+'-01',quantity:Number(x.qty)||0});});});if(rows.length){const {error}=await inventoryBuddySupabase.from('monthly_inventory').insert(rows);if(error)throw error;}}
+  cloudStatus('☁️ Synced to the cloud',true);
+ }catch(err){console.error('Cloud sync error',err);cloudStatus('Cloud sync needs attention: '+(err?.message||'unknown error'));}finally{cloudSyncBusy=false;}
+}
+async function loadCloudData(){
+ const {data:{user}}=await inventoryBuddySupabase.auth.getUser();if(!user){cloudReady=false;updateAuthUI(null);cloudStatus('Sign in to use the same Inventory Buddy data on your computer and phone.');return;}updateAuthUI(user);cloudStatus('☁️ Connecting to your shared inventory…');
+ try{
+  const [ir,sr,hr,or,ur,mr]=await Promise.all([
+   inventoryBuddySupabase.from('inventory_items').select('*').order('name'),inventoryBuddySupabase.from('suppliers').select('*').order('name'),inventoryBuddySupabase.from('order_history').select('*').order('ordered_at',{ascending:false}),inventoryBuddySupabase.from('ordered_items').select('inventory_item_id'),inventoryBuddySupabase.from('user_settings').select('*').maybeSingle(),inventoryBuddySupabase.from('monthly_inventory').select('*').order('inventory_month',{ascending:false})
+  ]);
+  for(const r of [ir,sr,hr,or,ur,mr])if(r.error)throw r.error;
+  const cloudItems=ir.data||[],cloudSuppliers=sr.data||[];const hasCloudData=cloudItems.length||cloudSuppliers.length||(hr.data||[]).length||(or.data||[]).length;
+  if(!hasCloudData&&((items&&items.length)||(suppliers&&suppliers.length))){cloudReady=true;ensureCloudIds();await syncToCloud();return;}
+  if(hasCloudData){
+   suppliers=cloudSuppliers.map(s=>({id:s.id,name:s.name,contact:s.contact||''}));
+   items=cloudItems.map(i=>({id:i.id,name:i.name,cat:i.category||'Other',category:i.category||'Other',unit:i.package_type||'cases',packSize:Number(i.items_per_package)||0,qty:Number(i.quantity)||0,min:Number(i.minimum_stock)||0,orderQty:Number(i.normal_order_quantity)||0,barcode:i.barcode||'',supplierId:i.supplier_id||''}));
+   orderedItems=(or.data||[]).map(x=>String(x.inventory_item_id));orderHistory=(hr.data||[]).map(x=>({id:x.id,itemId:x.inventory_item_id,name:x.item_name,quantity:Number(x.quantity)||0,orderedAt:x.ordered_at}));
+   localStorage.setItem('inventoryBuddyV2',JSON.stringify(items));localStorage.setItem('inventoryBuddySuppliers',JSON.stringify(suppliers));localStorage.setItem('inventoryBuddyOrdered',JSON.stringify(orderedItems));localStorage.setItem('inventoryBuddyOrderHistory',JSON.stringify(orderHistory));
+   if(ur.data){business={name:ur.data.business_name||'',type:ur.data.business_type||''};localStorage.setItem('inventoryBuddyBusiness',JSON.stringify(business));}
+   const byMonth={};(mr.data||[]).forEach(r=>{const month=String(r.inventory_month||'').slice(0,7);(byMonth[month] ||= []).push(r);});snapshots=Object.keys(byMonth).sort().reverse().map(month=>({month,savedAt:new Date().toISOString(),items:byMonth[month].map(r=>{const i=items.find(x=>String(x.id)===String(r.inventory_item_id));return i?{id:i.id,name:i.name,unit:i.unit,cat:i.cat,qty:Number(r.quantity)||0,barcode:i.barcode||''}:null;}).filter(Boolean)}));localStorage.setItem('inventoryBuddySnapshots',JSON.stringify(snapshots));
+  }
+  cloudReady=true;render();renderMonthly();renderBusiness();populateSupplierSelect();cloudStatus('☁️ Connected — your phone and computer can share this inventory.',true);
+ }catch(err){console.error('Cloud load error',err);cloudReady=false;cloudStatus('Could not connect to cloud: '+(err?.message||'unknown error'));}
+}
+function updateAuthUI(user){const form=document.getElementById('authForm'),box=document.getElementById('signedInBox'),email=document.getElementById('cloudEmail');if(user){form?.classList.add('hidden');box?.classList.remove('hidden');if(email)email.textContent=user.email||'your account';}else{form?.classList.remove('hidden');box?.classList.add('hidden');}}
+async function cloudSignUp(){const email=document.getElementById('authEmail')?.value.trim(),password=document.getElementById('authPassword')?.value;if(!email||!password)return alert('Enter your email and a password first.');if(password.length<6)return alert('Use a password with at least 6 characters.');const {data,error}=await inventoryBuddySupabase.auth.signUp({email,password});if(error)return alert(error.message);if(data.session){alert('Account created and signed in.');await loadCloudData();}else alert('Account created. Check your email for the confirmation link, then come back and sign in.');}
+async function cloudSignIn(){const email=document.getElementById('authEmail')?.value.trim(),password=document.getElementById('authPassword')?.value;if(!email||!password)return alert('Enter your email and password first.');const {error}=await inventoryBuddySupabase.auth.signInWithPassword({email,password});if(error)return alert(error.message);await loadCloudData();}
+async function cloudSignOut(){await inventoryBuddySupabase.auth.signOut();cloudReady=false;updateAuthUI(null);cloudStatus('Signed out. Your cloud data is still safely stored.');}
+async function cloudSyncNow(){if(!cloudReady)return alert('Sign in first.');await syncToCloud();}
+(async function initCloudSync(){try{inventoryBuddySupabase.auth.onAuthStateChange((event,session)=>{if(session)loadCloudData();else{cloudReady=false;updateAuthUI(null);}});const {data:{session}}=await inventoryBuddySupabase.auth.getSession();if(session)await loadCloudData();else updateAuthUI(null);}catch(err){console.error(err);cloudStatus('Cloud setup could not start.');}})();
+</script>
+</body>
+</html>

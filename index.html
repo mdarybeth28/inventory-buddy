@@ -755,7 +755,7 @@ function renderSuppliers(){
  if(!suppliers.length){box.innerHTML='<p class="small">No suppliers added yet.</p>';return;}
  box.innerHTML=suppliers.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(s=>{
    const count=items.filter(i=>String(i.supplierId||'')===String(s.id)).length;
-   return '<div class="supplier-row"><div><b>'+esc(s.name)+'</b>'+(s.contact?'<div class="small">'+esc(s.contact)+'</div>':'')+'<div class="small">'+count+' item'+(count===1?'':'s')+' assigned</div></div><div class="supplier-actions"><button type="button" class="secondary" onclick="editSupplier('"+s.id+"')">✏️ Edit</button><button type="button" class="danger" onclick="deleteSupplier('"+s.id+"')">Delete</button></div></div>';
+   return '<div class="supplier-row"><div><b>'+esc(s.name)+'</b>'+(s.contact?'<div class="small">'+esc(s.contact)+'</div>':'')+'<div class="small">'+count+' item'+(count===1?'':'s')+' assigned</div></div><div class="supplier-actions"><button type="button" class="secondary" onclick="editSupplier('+s.id+')">✏️ Edit</button><button type="button" class="danger" onclick="deleteSupplier('+s.id+')">Delete</button></div></div>';
  }).join('');
 }
 
@@ -775,7 +775,7 @@ function renderSmartOrders(){
  data.map(i=>{
    const qty=Number(i.qty)||0,min=Number(i.min)||0;
    const orderQty=Number(i.orderQty)>0?Number(i.orderQty):Math.max(1,min-qty);
-   return '<tr><td><b>'+esc(i.name)+'</b><div class="small">'+esc(i.cat||'')+(i.barcode?' • '+esc(i.barcode):'')+(i.supplierId?' • '+esc(getSupplierName(i.supplierId)):'')+'</div></td><td>'+qty+' '+esc(i.unit||'')+'</td><td>'+min+' '+esc(i.unit||'')+'</td><td><b>'+orderQty+'</b> '+esc(i.unit||'')+'</td><td><button type="button" class="secondary" onclick="markOrdered('"+i.id+"')">✓ Mark Ordered</button></td></tr>';
+   return '<tr><td><b>'+esc(i.name)+'</b><div class="small">'+esc(i.cat||'')+(i.barcode?' • '+esc(i.barcode):'')+(i.supplierId?' • '+esc(getSupplierName(i.supplierId)):'')+'</div></td><td>'+qty+' '+esc(i.unit||'')+'</td><td>'+min+' '+esc(i.unit||'')+'</td><td><b>'+orderQty+'</b> '+esc(i.unit||'')+'</td><td><button type="button" class="secondary" onclick="markOrdered('+i.id+')">✓ Mark Ordered</button></td></tr>';
  }).join('')+'</tbody></table><div class="order-total">'+data.length+' item'+(data.length===1?'':'s')+' need ordering.</div>';
 }
 function markOrdered(id){

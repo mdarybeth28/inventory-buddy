@@ -76,13 +76,13 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;fo
   <div class="stat" role="button" tabindex="0" onclick="show('order')"><div class="num" id="statOrder">0</div><div class="label">📝 To Order</div></div>
   <div class="stat" role="button" tabindex="0" onclick="show('suppliers')"><div class="num" id="statSuppliers">0</div><div class="label">🏢 Suppliers</div></div>
 </div>
-<div class="quick-actions no-print">
+<div class="grid nav no-print">
   <button type="button" onclick="show('add')">➕ Add Item</button>
   <button type="button" onclick="show('quick')">⚡ Quick Count</button>
   <button type="button" onclick="show('order')">📝 Order List</button>
   <button type="button" onclick="show('monthly')">📅 Monthly Inventory</button>
 </div>
-<div class="section-title no-print">All Tools</div>
+
 <div class="grid nav" id="navButtons">
 <button type="button" onclick="show('inventory')">📋 My Inventory</button>
 <button type="button" onclick="show('low')">⚠️ Low Stock</button>
@@ -246,12 +246,12 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;fo
 </div>
 </section>
 
-<section class="card no-print">
-<h3>💾 Backup</h3>
+<details class="card no-print">
+<summary style="cursor:pointer"><h3>💾 Backup</h3></summary>
 <div class="small">Save a copy of your inventory or restore one later.</div>
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
-</section>
+</details>
 <div class="card small no-print">Version 22 • Receive Order with photo capture/upload, manual entry, multi-page support, OCR review, item-specific package sizes, and usage tracking for opened packages.</div>
 </main>
 

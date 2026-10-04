@@ -362,7 +362,7 @@ function saveItem(){
  show('inventory');
 }
 function editItem(id){
- const x=items.find(i=>i.id===id);
+ const x=items.find(i=>String(i.id)===String(id));
  if(!x)return;
  editingId=id;
  document.getElementById('name').value=x.name||'';
@@ -382,7 +382,7 @@ function editItem(id){
 function cancelEdit(){editingId=null;formTitle.textContent='Add an Item';name.value='';document.getElementById('packSize').value='';qty.value='';min.value='';orderQty.value='';barcode.value='';cat.value='Food';unit.value='cases';if(document.getElementById('supplierId'))document.getElementById('supplierId').value='';}
 function change(id,delta){
  const y=window.scrollY;
- const x=items.find(i=>i.id===id);
+ const x=items.find(i=>String(i.id)===String(id));
  if(!x)return;
  x.qty=Math.max(0,x.qty+delta);
  localStorage.setItem('inventoryBuddyV2',JSON.stringify(items));
@@ -392,7 +392,7 @@ function change(id,delta){
  if(quick && !quick.classList.contains('hidden')) renderQuick();
  requestAnimationFrame(()=>window.scrollTo(0,y));
 }
-function removeItem(id){if(confirm('Delete this item?')){items=items.filter(i=>i.id!==id);persist();}}
+function removeItem(id){if(confirm('Delete this item?')){items=items.filter(i=>String(i.id)!==String(id));persist();}}
 function itemHTML(i){
  const low=Number(i.min)>0 && Number(i.qty)<=Number(i.min);
  const pack=Number(i.packSize)||0;
@@ -402,11 +402,11 @@ function itemHTML(i){
  <div class="${low?'low':'good'}">${low?'⚠️ LOW STOCK':'✓ In stock'} — ${qtyText} ${esc(i.unit)} <span class="small">(minimum ${i.min})</span></div>
  ${totalUnits!==null?`<div class="small">≈ ${Number.isInteger(totalUnits)?totalUnits:totalUnits.toFixed(1)} individual units remaining</div>`:''}
  ${low&&i.orderQty?`<div class="small">Suggested order: <b>${i.orderQty} ${esc(i.unit)}</b></div>`:''}${i.barcode?`<div class="small">Barcode: ${esc(i.barcode)}</div>`:''}${pack>0?`<div class="small">Items per package: ${esc(pack)} units per ${esc(i.unit)}</div>`:''}${i.supplierId?`<div class="small">Supplier: ${esc(getSupplierName(i.supplierId))}</div>`:''}</div>
- <div><button type="button" onclick="change(${i.id},-1)">−</button><button type="button" onclick="change(${i.id},1)">+</button></div></div>
- <div class="no-print"><button type="button" class="secondary" onclick="useItems(${i.id})">🧮 Use Items</button><button type="button" class="secondary" onclick="editItem(${i.id})">✏️ Edit</button><button type="button" class="danger" onclick="removeItem(${i.id})">Delete</button></div></div>`;
+ <div><button type="button" onclick="change('${i.id}',-1)">−</button><button type="button" onclick="change('${i.id}',1)">+</button></div></div>
+ <div class="no-print"><button type="button" class="secondary" onclick="useItems('${i.id}')">🧮 Use Items</button><button type="button" class="secondary" onclick="editItem('${i.id}')">✏️ Edit</button><button type="button" class="danger" onclick="removeItem('${i.id}')">Delete</button></div></div>`;
 }
 function useItems(id){
- const item=items.find(i=>i.id===id);
+ const item=items.find(i=>String(i.id)===String(id));
  if(!item)return;
  const pack=Number(item.packSize)||0;
  const current=Number(item.qty)||0;
@@ -457,7 +457,7 @@ function renderQuick(){ const y=window.scrollY;
  document.getElementById('quickCountLabel').textContent=`${data.length} item${data.length===1?'':'s'}`;
  document.getElementById('quickList').innerHTML=data.length?data.map(i=>{
    const low=Number(i.min)>0 && Number(i.qty)<=Number(i.min);
-   return `<div class="item"><div class="row"><div style="flex:1"><b>${esc(i.name)}</b><div class="small">${esc(i.cat)} • Current: <b>${i.qty}</b> ${esc(i.unit)}</div><div class="${low?'low':'good'}">${low?'⚠️ LOW':'✓ OK'} <span class="small">minimum ${i.min}</span></div></div><div style="display:flex;align-items:center;gap:6px"><button type="button" style="font-size:22px;min-width:46px" onclick="change(${i.id},-1)">−</button><strong style="min-width:34px;text-align:center">${i.qty}</strong><button type="button" class="primary" style="font-size:22px;min-width:46px" onclick="change(${i.id},1)">+</button></div></div></div>`;
+   return `<div class="item"><div class="row"><div style="flex:1"><b>${esc(i.name)}</b><div class="small">${esc(i.cat)} • Current: <b>${i.qty}</b> ${esc(i.unit)}</div><div class="${low?'low':'good'}">${low?'⚠️ LOW':'✓ OK'} <span class="small">minimum ${i.min}</span></div></div><div style="display:flex;align-items:center;gap:6px"><button type="button" style="font-size:22px;min-width:46px" onclick="change('${i.id}',-1)">−</button><strong style="min-width:34px;text-align:center">${i.qty}</strong><button type="button" class="primary" style="font-size:22px;min-width:46px" onclick="change('${i.id}',1)">+</button></div></div></div>`;
  }).join(''):'<p class="small">No matching items.</p>';
 }
 let scannerInstance=null;
@@ -755,7 +755,7 @@ function renderSuppliers(){
  if(!suppliers.length){box.innerHTML='<p class="small">No suppliers added yet.</p>';return;}
  box.innerHTML=suppliers.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(s=>{
    const count=items.filter(i=>String(i.supplierId||'')===String(s.id)).length;
-   return '<div class="supplier-row"><div><b>'+esc(s.name)+'</b>'+(s.contact?'<div class="small">'+esc(s.contact)+'</div>':'')+'<div class="small">'+count+' item'+(count===1?'':'s')+' assigned</div></div><div class="supplier-actions"><button type="button" class="secondary" onclick="editSupplier('+s.id+')">✏️ Edit</button><button type="button" class="danger" onclick="deleteSupplier('+s.id+')">Delete</button></div></div>';
+   return '<div class="supplier-row"><div><b>'+esc(s.name)+'</b>'+(s.contact?'<div class="small">'+esc(s.contact)+'</div>':'')+'<div class="small">'+count+' item'+(count===1?'':'s')+' assigned</div></div><div class="supplier-actions"><button type="button" class="secondary" onclick="editSupplier('"+s.id+"')">✏️ Edit</button><button type="button" class="danger" onclick="deleteSupplier('"+s.id+"')">Delete</button></div></div>';
  }).join('');
 }
 
@@ -775,7 +775,7 @@ function renderSmartOrders(){
  data.map(i=>{
    const qty=Number(i.qty)||0,min=Number(i.min)||0;
    const orderQty=Number(i.orderQty)>0?Number(i.orderQty):Math.max(1,min-qty);
-   return '<tr><td><b>'+esc(i.name)+'</b><div class="small">'+esc(i.cat||'')+(i.barcode?' • '+esc(i.barcode):'')+(i.supplierId?' • '+esc(getSupplierName(i.supplierId)):'')+'</div></td><td>'+qty+' '+esc(i.unit||'')+'</td><td>'+min+' '+esc(i.unit||'')+'</td><td><b>'+orderQty+'</b> '+esc(i.unit||'')+'</td><td><button type="button" class="secondary" onclick="markOrdered('+i.id+')">✓ Mark Ordered</button></td></tr>';
+   return '<tr><td><b>'+esc(i.name)+'</b><div class="small">'+esc(i.cat||'')+(i.barcode?' • '+esc(i.barcode):'')+(i.supplierId?' • '+esc(getSupplierName(i.supplierId)):'')+'</div></td><td>'+qty+' '+esc(i.unit||'')+'</td><td>'+min+' '+esc(i.unit||'')+'</td><td><b>'+orderQty+'</b> '+esc(i.unit||'')+'</td><td><button type="button" class="secondary" onclick="markOrdered('"+i.id+"')">✓ Mark Ordered</button></td></tr>';
  }).join('')+'</tbody></table><div class="order-total">'+data.length+' item'+(data.length===1?'':'s')+' need ordering.</div>';
 }
 function markOrdered(id){

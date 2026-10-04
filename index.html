@@ -1008,6 +1008,16 @@ const tol=Math.max(6,medH*0.5);
  return {clean,lines,medH};
 }
 function nearestHeader(clean, re){ return clean.filter(w=>re.test(w.text)).sort((a,b)=>a.y-b.y)[0]||null; }
+function pickProductName(description, mergedName){
+ const cleanEdge=s=>String(s||'').replace(/^[|:;,.\-]+|[|:;,.\-]+$/g,'').trim();
+ if(mergedName){
+   const n=cleanEdge(mergedName.replace(/\s+#\d{1,4}\s*$/,''));
+   if(n && /[A-Za-z]{3,}/.test(n)) return n;
+ }
+ const segs=String(description||'').split('|').map(cleanEdge).filter(s=>/[A-Za-z]{3,}/.test(s)&&!/^(commodity|cases?|packs?|each|box|ct)$/i.test(s));
+ if(segs.length) return segs[0];
+ return cleanEdge(description);
+}
 async function extractOrderRowsFromWords(words, file, status){
  if(!Array.isArray(words)||!words.length) return [];
  const {clean,lines,medH}=makeWordLines(words);
@@ -1040,17 +1050,18 @@ product=product.replace(/^0+(?=\d+$)/,'')||product;
    // Gordon-style invoices print the product name on the line under the code line.
    const nextL=lines[li+1];
    const gapPx=Math.max(90,(Number(medH)||12)*3);
+   let mergedName='';
    if(nextL && nextL.y>L.y && nextL.y<L.y+gapPx && nextL.y<endY){
      const nextHasCode=nextL.words.some(w=>codeRe.test(w.text)&&w.x<anchor.x-35);
      const nextTxt=nextL.words.filter(w=>!/^\d+(?:\.\d+)?$/.test(w.text)).map(w=>w.text).join(' ').replace(/\s+/g,' ').trim();
      const alphaPct=nextTxt?((nextTxt.match(/[A-Za-z]/g)||[]).length/nextTxt.length):0;
-     if(!nextHasCode&&nextTxt&&/[A-Za-z]{2,}/.test(nextTxt)&&alphaPct>0.4&&!/gfs\.com|https?:|\/\//i.test(nextTxt)&&!banRe.test(nextTxt)) description+=' '+nextTxt;
+     if(!nextHasCode&&nextTxt&&/[A-Za-z]{2,}/.test(nextTxt)&&alphaPct>0.4&&!/gfs\.com|https?:|\/\//i.test(nextTxt)&&!banRe.test(nextTxt)){ description+=' '+nextTxt; mergedName=nextTxt; }
    }
    if(!description || !/[A-Za-z]{2,}/.test(description)) continue;
    if(/\b(route|invoice|customer|store|subtotal|balance|total|date|time|terms|warehouse|sales|signature|received|page|price|amount|description|product|special|information|remit|sold|bill|deliver|instructions|containers?)\b/i.test(description)) continue;
    const yCenter=L.y+((L.words.reduce((a,w)=>a+w.y1,0)/L.words.length)-L.y)/2;
    const qtyX=qtyH?.x ?? null, unitsX=unitsH?.x ?? null, casesX=casesH?.x ?? caseUnitH?.x ?? null;
-   rows.push({product,description,raw:L.words.map(w=>w.text).join(' '),y:yCenter,qtyX,unitsX,casesX,ocrSource:'column crop'});
+   rows.push({product,description,name:pickProductName(description,mergedName),raw:L.words.map(w=>w.text).join(' '),y:yCenter,qtyX,unitsX,casesX,ocrSource:'column crop'});
  }
  const seen=new Set();
  const unique=rows.filter(r=>{const k=r.product+'|'+normText(r.description);if(seen.has(k))return false;seen.add(k);return true;}).slice(0,150);
@@ -1121,7 +1132,7 @@ async function processReceiveOrder(){
  }catch(err){console.error(err);status.textContent='Could not read the order. You can still use the photos and enter received quantities manually.';alert('The order could not be read. Try a clearer photo with good lighting.');}
 }
 function findBestRowMatch(row){
- const p=normText(row.product), d=normText(row.description);
+ const p=normText(row.product), d=normText(row.name||row.description);
  return items.map(i=>{
    let score=0;
    if(i.barcode && normText(i.barcode)===p)score+=200;
@@ -1227,7 +1238,7 @@ function renderReceiveResults(text,rows){
        html+='<input type="hidden" id="recvId'+idx+'" value="'+esc(existing.item.id)+'">';
      }else{
        html+='<label>Inventory item (optional)</label><select id="recvMap'+idx+'"><option value="">Add as new item</option>'+items.map(i=>'<option value="'+esc(i.id)+'">'+esc(i.name)+(i.barcode?' • '+esc(i.barcode):'')+'</option>').join('')+'</select>';
-       html+='<label>New item name</label><input id="newName'+idx+'" value="'+esc(r.description)+'">';
+       html+='<label>New item name</label><input id="newName'+idx+'" value="'+esc(r.name||r.description)+'">';
        html+='<label>Product / barcode</label><input id="newProd'+idx+'" value="'+esc(r.product)+'">';
      }
      html+='<label>Received quantity <span class="small">(from receipt'+(r.qtySource?' • '+esc(r.qtySource):'')+')</span></label><input id="recvQty'+idx+'" type="number" min="0" step="0.01" value="'+esc(r.qty||'')+'">';

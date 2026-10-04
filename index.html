@@ -77,7 +77,7 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;fo
   <div class="stat" role="button" tabindex="0" onclick="show('suppliers')"><div class="num" id="statSuppliers">0</div><div class="label">🏢 Suppliers</div></div>
 </div>
 <div class="quick-actions no-print">
-  <button type="button" class="primary" onclick="show('add')">➕ Add Item</button>
+  <button type="button" onclick="show('add')">➕ Add Item</button>
   <button type="button" onclick="show('quick')">⚡ Quick Count</button>
   <button type="button" onclick="show('order')">📝 Order List</button>
   <button type="button" onclick="show('monthly')">📅 Monthly Inventory</button>
@@ -91,7 +91,7 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;fo
 <button type="button" onclick="show('receive')">📸 Receive Order</button>
 </div>
 
-<button type="button" class="secondary no-print" style="width:100%;margin:12px 0" onclick="show('low')">⚠️ View Low Stock Items</button>
+
 <section id="add" class="card hidden">
 <h2 id="formTitle">Add an Item</h2>
 <label>Item name</label><input id="name" placeholder="Example: Hamburger Buns">

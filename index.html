@@ -201,8 +201,8 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;fo
 <button type="button" class="secondary" onclick="clearReceivePhotos()">Clear Photos</button>
 </div>
 <div id="receiveStatus" class="small" style="margin-top:8px"></div>
-<div class="manual-box no-print">
-<b>✍️ Add Item Manually</b>
+<details class="manual-box no-print">
+<summary style="cursor:pointer"><b>✍️ Add Item Manually</b></summary>
 <div class="small" style="margin-top:4px">Use this when you do not have a photo, are in a hurry, or the receipt reader misses an item.</div>
 <label>Inventory item</label>
 <div class="row" style="gap:6px;align-items:center">
@@ -216,7 +216,7 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;fo
 <div id="manualConversion" class="small" style="margin:4px 0 8px"></div>
 <button type="button" class="secondary" onclick="addManualReceiveItem()">➕ Add to Review</button>
 <div id="manualReview" class="manual-review"></div>
-</div>
+</details>
 <div id="receiveResults" style="margin-top:12px"></div>
 </section>
 

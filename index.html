@@ -1024,7 +1024,10 @@ async function extractOrderRowsFromWords(words, file, status){
  let endY=Infinity; for(const y of footerY) if(y>startY) endY=Math.min(endY,y-4);
  // Product code is normally the left-most 4-8 digit token in a row.
  const rows=[];
- for(const L of lines){
+ const codeRe=/^#?\d{4,8}[)\]]?$/;
+ const banRe=/\b(route|invoice|customer|store|subtotal|balance|total|date|time|terms|warehouse|sales|signature|received|page|price|amount|description|product|special|information|remit|sold|bill|deliver|instructions|containers?)\b/i;
+ for(let li=0;li<lines.length;li++){
+   const L=lines[li];
    if(L.y<startY || L.y>endY) continue;
    const numeric=L.words.filter(w=>/^#?\d{4,8}[)\]]?$/.test(w.text));
    const codeWord=numeric.find(w=>w.x < anchor.x-35);
@@ -1032,16 +1035,17 @@ async function extractOrderRowsFromWords(words, file, status){
    let product=codeWord.text.replace(/^#/,'').replace(/[)\]]+$/,'');
 product=product.replace(/^0+(?=\d+$)/,'')||product;
    const descWords=L.words.filter(w=>w.x>codeWord.x+20 && w.x < (casesH?.x ?? unitsH?.x ?? qtyH?.x ?? anchor.x)-20 && !/^\d+(?:\.\d+)?$/.test(w.text));
-description=description.replace(/^[|:;,.-]+|[|:;,.-]+$/g,'').trim();
-// Gordon-style invoices print the product name on the line under the code line.
-const nextL=lines[lines.indexOf(L)+1];
-if(nextL && nextL.y>L.y && nextL.y<L.y+Math.max(90,medH*3) && nextL.y<endY){
-  const nextHasCode=nextL.words.some(w=>/^#?\d{4,8}[)\]]?$/.test(w.text)&&w.x<anchor.x-35);
-  const nextTxt=nextL.words.filter(w=>!/^\d+(?:\.\d+)?$/.test(w.text)).map(w=>w.text).join(' ').replace(/\s+/g,' ').trim();
-  const alphaPct=nextTxt?((nextTxt.match(/[A-Za-z]/g)||[]).length/nextTxt.length):0;
-  if(!nextHasCode&&nextTxt&&/[A-Za-z]{2,}/.test(nextTxt)&&alphaPct>0.4&&!/gfs\.com|https?:|\/\//i.test(nextTxt)) description+=' '+nextTxt;
-}
-   description=description.replace(/^[|:;,.-]+|[|:;,.-]+$/g,'').trim();    // Gordon-style invoices print the product name on the line under the code line.    const nextL=lines[lines.indexOf(L)+1];    if(nextL && nextL.y>L.y && nextL.y<L.y+Math.max(90,medH*3) && nextL.y<endY){      const nextHasCode=nextL.words.some(w=>/^#?\d{4,8}[)\]]?$/.test(w.text)&&w.x<anchor.x-35);      const nextTxt=nextL.words.filter(w=>!/^\d+(?:\.\d+)?$/.test(w.text)).map(w=>w.text).join(' ').replace(/\s+/g,' ').trim();      const alphaPct=nextTxt?((nextTxt.match(/[A-Za-z]/g)||[]).length/nextTxt.length):0;      if(!nextHasCode&&nextTxt&&/[A-Za-z]{2,}/.test(nextTxt)&&alphaPct>0.4&&!/gfs\.com|https?:|\/\//i.test(nextTxt)) description+=' '+nextTxt;    }
+   let description=descWords.map(w=>w.text).join(' ').replace(/\s+/g,' ').trim();
+   description=description.replace(/^[|:;,.-]+|[|:;,.-]+$/g,'').trim();
+   // Gordon-style invoices print the product name on the line under the code line.
+   const nextL=lines[li+1];
+   const gapPx=Math.max(90,(Number(medH)||12)*3);
+   if(nextL && nextL.y>L.y && nextL.y<L.y+gapPx && nextL.y<endY){
+     const nextHasCode=nextL.words.some(w=>codeRe.test(w.text)&&w.x<anchor.x-35);
+     const nextTxt=nextL.words.filter(w=>!/^\d+(?:\.\d+)?$/.test(w.text)).map(w=>w.text).join(' ').replace(/\s+/g,' ').trim();
+     const alphaPct=nextTxt?((nextTxt.match(/[A-Za-z]/g)||[]).length/nextTxt.length):0;
+     if(!nextHasCode&&nextTxt&&/[A-Za-z]{2,}/.test(nextTxt)&&alphaPct>0.4&&!/gfs\.com|https?:|\/\//i.test(nextTxt)&&!banRe.test(nextTxt)) description+=' '+nextTxt;
+   }
    if(!description || !/[A-Za-z]{2,}/.test(description)) continue;
    if(/\b(route|invoice|customer|store|subtotal|balance|total|date|time|terms|warehouse|sales|signature|received|page|price|amount|description|product|special|information|remit|sold|bill|deliver|instructions|containers?)\b/i.test(description)) continue;
    const yCenter=L.y+((L.words.reduce((a,w)=>a+w.y1,0)/L.words.length)-L.y)/2;

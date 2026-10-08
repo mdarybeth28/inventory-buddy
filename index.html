@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inventory Buddy — V22 Receive Order v19</title>
+<title>Inventory Buddy — V23</title>
 <style>
 *{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f5f6f8;color:#222}
 header{background:#1f2937;color:white;padding:24px 18px}h1{margin:0 0 6px;font-size:28px}.sub{opacity:.85}
@@ -35,7 +35,7 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;fo
 .supplier-list{margin-top:10px}.supplier-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-top:1px solid #eee}.supplier-actions{display:flex;gap:4px;flex-wrap:wrap}
 </style><style>.manual-box{margin-top:14px;padding:12px;border:1px solid #dbeafe;background:#f8fbff;border-radius:12px}.manual-review{margin-top:10px}.manual-row{border-top:1px solid #e5e7eb;padding:10px 0}.manual-row:first-child{border-top:0}</style></head>
 <body><div id="appReady">✓ Ready</div>
-<header><h1>📦 Inventory Buddy</h1><div class="sub">Version 22 • Receive Order v19</div></header>
+<header><h1>📦 Inventory Buddy</h1><div class="sub">Version 23 • Box Label Scan</div></header>
 <main>
 <section class="card no-print" id="cloudSyncCard">
   <h2>☁️ Cloud Sync</h2>
@@ -252,7 +252,7 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;fo
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 22 • Receive Order with photo capture/upload, manual entry, multi-page support, OCR review, item-specific package sizes, and usage tracking for opened packages.</div>
+<div class="card small no-print">Version 23 • Receive Order with photo capture/upload, manual entry, multi-page support, OCR review, item-specific package sizes, usage tracking for opened packages, and box label scanning.</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

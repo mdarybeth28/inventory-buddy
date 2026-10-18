@@ -13,6 +13,11 @@ button{border:0;border-radius:11px;padding:11px 14px;font-size:15px;cursor:point
 input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:16px;margin:6px 0 10px}
 .item{border-top:1px solid #eee;padding:14px 0}.row{display:flex;justify-content:space-between;gap:10px;align-items:center}.small{font-size:13px;color:#666}.low{color:#b91c1c;font-weight:700}.good{color:#15803d;font-weight:700}
 .badge{display:inline-block;background:#eef2ff;border-radius:20px;padding:4px 8px;font-size:12px;margin-top:5px}.hidden{display:none}
+/* Keep the app itself hidden until a signed-in account has loaded successfully. */
+body:not(.authenticated) main > :not(#cloudSyncCard){display:none!important}
+body:not(.authenticated) #cloudSyncCard{margin-top:24px}
+body:not(.authenticated) #cloudSyncCard h2{font-size:22px;margin-bottom:8px}
+body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventory, suppliers, orders, and settings are available only after your account is connected.";display:block;color:#555;font-size:14px;line-height:1.5;margin:12px 0}
 .dashboard{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:14px 0}
 .stat{background:white;border-radius:16px;padding:16px;box-shadow:0 2px 10px #0000000d;text-align:center;cursor:pointer;transition:transform .12s}
 .stat:active{transform:scale(.98)}.stat .num{font-size:28px;font-weight:800;margin:4px 0}.stat .label{font-size:13px;color:#666}
@@ -35,16 +40,15 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;fo
 .supplier-list{margin-top:10px}.supplier-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-top:1px solid #eee}.supplier-actions{display:flex;gap:4px;flex-wrap:wrap}
 </style><style>.manual-box{margin-top:14px;padding:12px;border:1px solid #dbeafe;background:#f8fbff;border-radius:12px}.manual-review{margin-top:10px}.manual-row{border-top:1px solid #e5e7eb;padding:10px 0}.manual-row:first-child{border-top:0}</style></head>
 <body><div id="appReady">✓ Ready</div>
-<header><h1>📦 Inventory Buddy</h1><div class="sub">Version 23 • Box Label Scan</div></header>
+<header><h1>📦 Inventory Buddy</h1><div class="sub">School inventory, made simpler.</div></header>
 <main>
 <section class="card no-print" id="cloudSyncCard">
-  <h2>☁️ Cloud Sync</h2>
-  <div id="cloudStatus" class="setup-note">Sign in to use the same Inventory Buddy data on your computer and phone.</div>
+  <h2>Welcome to Inventory Buddy</h2>
+  <div id="cloudStatus" class="setup-note">Sign in to access your inventory. Need an account? Contact your Inventory Buddy administrator.</div>
   <div id="authForm" style="margin-top:10px">
     <label>Email</label><input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com">
     <label>Password</label><input id="authPassword" type="password" autocomplete="current-password" placeholder="At least 6 characters">
     <button type="button" class="primary" onclick="cloudSignIn()">Sign In</button>
-    <button type="button" class="secondary" onclick="cloudSignUp()">Create Account</button>
   </div>
   <div id="signedInBox" class="hidden" style="margin-top:10px">
     <div class="small">Signed in as <b id="cloudEmail"></b></div>
@@ -1402,10 +1406,10 @@ async function loadCloudData(){
   business=ur.data?{name:ur.data.business_name||'',type:ur.data.business_type||''}:null;
   const byMonth={};(mr.data||[]).forEach(r=>{const month=String(r.inventory_month||'').slice(0,7);(byMonth[month] ||= []).push(r);});snapshots=Object.keys(byMonth).sort().reverse().map(month=>({month,savedAt:new Date().toISOString(),items:byMonth[month].map(r=>{const i=items.find(x=>String(x.id)===String(r.inventory_item_id));return i?{id:i.id,name:i.name,unit:i.unit,cat:i.cat,qty:Number(r.quantity)||0,barcode:i.barcode||''}:null;}).filter(Boolean)}));
   localStorage.setItem('inventoryBuddyV2',JSON.stringify(items));localStorage.setItem('inventoryBuddySuppliers',JSON.stringify(suppliers));localStorage.setItem('inventoryBuddyOrdered',JSON.stringify(orderedItems));localStorage.setItem('inventoryBuddyOrderHistory',JSON.stringify(orderHistory));localStorage.setItem('inventoryBuddySnapshots',JSON.stringify(snapshots));if(business)localStorage.setItem('inventoryBuddyBusiness',JSON.stringify(business));else localStorage.removeItem('inventoryBuddyBusiness');
-  cloudReady=true;render();renderMonthly();renderBusiness();populateSupplierSelect();cloudStatus('☁️ Connected — your phone and computer can share this inventory.',true);
+  cloudReady=true;document.body.classList.add("authenticated");render();renderMonthly();renderBusiness();populateSupplierSelect();cloudStatus('☁️ Connected — your phone and computer can share this inventory.',true);
  }catch(err){console.error('Cloud load error',err);cloudReady=false;cloudStatus('Could not connect to cloud: '+(err?.message||'unknown error'));}
 }
-function updateAuthUI(user){const form=document.getElementById('authForm'),box=document.getElementById('signedInBox'),email=document.getElementById('cloudEmail');if(user){form?.classList.add('hidden');box?.classList.remove('hidden');if(email)email.textContent=user.email||'your account';}else{form?.classList.remove('hidden');box?.classList.add('hidden');}}
+function updateAuthUI(user){const form=document.getElementById('authForm'),box=document.getElementById('signedInBox'),email=document.getElementById('cloudEmail');if(user){form?.classList.add('hidden');box?.classList.remove('hidden');if(email)email.textContent=user.email||'your account';}else{document.body.classList.remove('authenticated');form?.classList.remove('hidden');box?.classList.add('hidden');}}
 async function cloudSignUp(){const email=document.getElementById('authEmail')?.value.trim(),password=document.getElementById('authPassword')?.value;if(!email||!password)return alert('Enter your email and a password first.');if(password.length<6)return alert('Use a password with at least 6 characters.');const {data,error}=await inventoryBuddySupabase.auth.signUp({email,password});if(error)return alert(error.message);if(data.session){alert('Account created and signed in.');await loadCloudData();}else alert('Account created. Check your email for the confirmation link, then come back and sign in.');}
 async function cloudSignIn(){const email=document.getElementById('authEmail')?.value.trim(),password=document.getElementById('authPassword')?.value;if(!email||!password)return alert('Enter your email and password first.');const {error}=await inventoryBuddySupabase.auth.signInWithPassword({email,password});if(error)return alert(error.message);await loadCloudData();}
 async function cloudSignOut(){await inventoryBuddySupabase.auth.signOut();cloudReady=false;updateAuthUI(null);cloudStatus('Signed out. Your cloud data is still safely stored.');}

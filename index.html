@@ -1387,22 +1387,21 @@ async function syncToCloud(){
  }catch(err){console.error('Cloud sync error',err);cloudStatus('Cloud sync needs attention: '+(err?.message||'unknown error'));}finally{cloudSyncBusy=false;}
 }
 async function loadCloudData(){
- const {data:{user}}=await inventoryBuddySupabase.auth.getUser();if(!user){cloudReady=false;updateAuthUI(null);cloudStatus('Sign in to use the same Inventory Buddy data on your computer and phone.');return;}updateAuthUI(user);cloudStatus('☁️ Connecting to your shared inventory…');
+ const {data:{user}}=await inventoryBuddySupabase.auth.getUser();if(!user){cloudReady=false;updateAuthUI(null);cloudStatus('Sign in to use the same Inventory Buddy data on your computer and phone.');return;}cloudReady=false;updateAuthUI(user);cloudStatus('☁️ Connecting to your shared inventory…');
  try{
   const [ir,sr,hr,or,ur,mr]=await Promise.all([
    inventoryBuddySupabase.from('inventory_items').select('*').order('name'),inventoryBuddySupabase.from('suppliers').select('*').order('name'),inventoryBuddySupabase.from('order_history').select('*').order('ordered_at',{ascending:false}),inventoryBuddySupabase.from('ordered_items').select('inventory_item_id'),inventoryBuddySupabase.from('user_settings').select('*').maybeSingle(),inventoryBuddySupabase.from('monthly_inventory').select('*').order('inventory_month',{ascending:false})
   ]);
   for(const r of [ir,sr,hr,or,ur,mr])if(r.error)throw r.error;
-  const cloudItems=ir.data||[],cloudSuppliers=sr.data||[];const hasCloudData=cloudItems.length||cloudSuppliers.length||(hr.data||[]).length||(or.data||[]).length;
-  if(!hasCloudData&&((items&&items.length)||(suppliers&&suppliers.length))){cloudReady=true;ensureCloudIds();await syncToCloud();return;}
-  if(hasCloudData){
-   suppliers=cloudSuppliers.map(s=>({id:s.id,name:s.name,contact:s.contact||''}));
-   items=cloudItems.map(i=>({id:i.id,name:i.name,cat:i.category||'Other',category:i.category||'Other',unit:i.package_type||'cases',packSize:Number(i.items_per_package)||0,qty:Number(i.quantity)||0,min:Number(i.minimum_stock)||0,orderQty:Number(i.normal_order_quantity)||0,barcode:i.barcode||'',supplierId:i.supplier_id||''}));
-   orderedItems=(or.data||[]).map(x=>String(x.inventory_item_id));orderHistory=(hr.data||[]).map(x=>({id:x.id,itemId:x.inventory_item_id,name:x.item_name,quantity:Number(x.quantity)||0,orderedAt:x.ordered_at}));
-   localStorage.setItem('inventoryBuddyV2',JSON.stringify(items));localStorage.setItem('inventoryBuddySuppliers',JSON.stringify(suppliers));localStorage.setItem('inventoryBuddyOrdered',JSON.stringify(orderedItems));localStorage.setItem('inventoryBuddyOrderHistory',JSON.stringify(orderHistory));
-   if(ur.data){business={name:ur.data.business_name||'',type:ur.data.business_type||''};localStorage.setItem('inventoryBuddyBusiness',JSON.stringify(business));}
-   const byMonth={};(mr.data||[]).forEach(r=>{const month=String(r.inventory_month||'').slice(0,7);(byMonth[month] ||= []).push(r);});snapshots=Object.keys(byMonth).sort().reverse().map(month=>({month,savedAt:new Date().toISOString(),items:byMonth[month].map(r=>{const i=items.find(x=>String(x.id)===String(r.inventory_item_id));return i?{id:i.id,name:i.name,unit:i.unit,cat:i.cat,qty:Number(r.quantity)||0,barcode:i.barcode||''}:null;}).filter(Boolean)}));localStorage.setItem('inventoryBuddySnapshots',JSON.stringify(snapshots));
-  }
+  // Always replace browser data with the signed-in account's cloud data.
+  // Never upload leftover browser data automatically to a newly signed-in account.
+  const cloudItems=ir.data||[],cloudSuppliers=sr.data||[];
+  suppliers=cloudSuppliers.map(s=>({id:s.id,name:s.name,contact:s.contact||''}));
+  items=cloudItems.map(i=>({id:i.id,name:i.name,cat:i.category||'Other',category:i.category||'Other',unit:i.package_type||'cases',packSize:Number(i.items_per_package)||0,qty:Number(i.quantity)||0,min:Number(i.minimum_stock)||0,orderQty:Number(i.normal_order_quantity)||0,barcode:i.barcode||'',supplierId:i.supplier_id||''}));
+  orderedItems=(or.data||[]).map(x=>String(x.inventory_item_id));orderHistory=(hr.data||[]).map(x=>({id:x.id,itemId:x.inventory_item_id,name:x.item_name,quantity:Number(x.quantity)||0,orderedAt:x.ordered_at}));
+  business=ur.data?{name:ur.data.business_name||'',type:ur.data.business_type||''}:null;
+  const byMonth={};(mr.data||[]).forEach(r=>{const month=String(r.inventory_month||'').slice(0,7);(byMonth[month] ||= []).push(r);});snapshots=Object.keys(byMonth).sort().reverse().map(month=>({month,savedAt:new Date().toISOString(),items:byMonth[month].map(r=>{const i=items.find(x=>String(x.id)===String(r.inventory_item_id));return i?{id:i.id,name:i.name,unit:i.unit,cat:i.cat,qty:Number(r.quantity)||0,barcode:i.barcode||''}:null;}).filter(Boolean)}));
+  localStorage.setItem('inventoryBuddyV2',JSON.stringify(items));localStorage.setItem('inventoryBuddySuppliers',JSON.stringify(suppliers));localStorage.setItem('inventoryBuddyOrdered',JSON.stringify(orderedItems));localStorage.setItem('inventoryBuddyOrderHistory',JSON.stringify(orderHistory));localStorage.setItem('inventoryBuddySnapshots',JSON.stringify(snapshots));if(business)localStorage.setItem('inventoryBuddyBusiness',JSON.stringify(business));else localStorage.removeItem('inventoryBuddyBusiness');
   cloudReady=true;render();renderMonthly();renderBusiness();populateSupplierSelect();cloudStatus('☁️ Connected — your phone and computer can share this inventory.',true);
  }catch(err){console.error('Cloud load error',err);cloudReady=false;cloudStatus('Could not connect to cloud: '+(err?.message||'unknown error'));}
 }

@@ -1137,7 +1137,7 @@ async function processReceiveOrder(){
    for(let i=0;i<receiveFiles.length;i++){
      const r=await ocrFile(receiveFiles[i],i+1,receiveFiles.length,status);
      allText+='\n'+r.text;
-     const rows=await extractOrderRowsFromWords(r.words,receiveFiles[i],status);
+     let rows=await extractOrderRowsFromWords(r.words,receiveFiles[i],status); const trows=extractOrderRows(r.text); const key=p=>String(p).replace(/^0+(?=\d+$)/,'')||String(p); if(!rows.length){rows=trows; if(/mccartney/i.test(r.text))rows.forEach(t=>{t.unit='cases';});} else {const tBy={}; trows.forEach(t=>{tBy[key(t.product)]=t;}); const wKeys=new Set(); rows.forEach(w=>{wKeys.add(key(w.product)); const t=tBy[key(w.product)]; if(!t)return; const mush=/\/(case|bag|package|each|canister|loaf|cs)\b/i; if(mush.test(w.name||w.description||'')&&t.description&&!mush.test(t.description)){w.name=t.description; w.description=t.description;} if(!w.qty&&t.qty)w.qty=t.qty;}); trows.forEach(t=>{if(!wKeys.has(key(t.product)))rows.push(t);});}
      allRows.push(...rows);
    }
    autoSelectSupplier(allText);

@@ -370,9 +370,9 @@ function saveItem(){
  }else{
    items.push({id:Date.now(),...data});
  }
- cancelEdit();
+ const wasEdit=!!editingId; cancelEdit();
  persist();
- show('inventory');
+ if(wasEdit){show('inventory');}else{document.getElementById('formTitle').textContent='✅ Saved: '+data.name+' — add the next item';}
 }
 function editItem(id){
  const x=items.find(i=>String(i.id)===String(id));
@@ -392,7 +392,7 @@ function editItem(id){
  document.getElementById('formTitle').textContent='✏️ Edit Item';
  show('add');
 }
-function cancelEdit(){editingId=null;formTitle.textContent='Add an Item';name.value='';document.getElementById('packSize').value='';qty.value='';min.value='';orderQty.value='';barcode.value='';cat.value='Food';unit.value='cases';if(document.getElementById('supplierId'))document.getElementById('supplierId').value='';}
+function cancelEdit(){editingId=null;formTitle.textContent='Add an Item';document.getElementById('name').value='';document.getElementById('packSize').value='';qty.value='';min.value='';orderQty.value='';barcode.value='';cat.value='Food';unit.value='cases';if(document.getElementById('supplierId'))document.getElementById('supplierId').value='';}
 function change(id,delta){
  const y=window.scrollY;
  const x=items.find(i=>String(i.id)===String(id));

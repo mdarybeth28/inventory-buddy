@@ -1158,8 +1158,8 @@ function findBestRowMatch(row){
 }
 function unitOptions(){return '<option>cases</option><option>crates</option><option>each</option><option>units</option><option>lbs</option><option>boxes</option><option>packs</option><option>bags</option><option>other</option>'}
 function inferPackSize(row){
- const d=String(row.description||'');
- const m=d.match(/(\d+(?:\.\d+)?)\s*\/\s*(?:CS|CASE|CASES)\b/i) || d.match(/(\d+(?:\.\d+)?)\s*(?:COUNT|CT)\b/i);
+ const d=String(row.description||'')+' '+String(row.raw||'');
+ const m=d.match(/(\d+(?:\.\d+)?)\s+\w{2,10}\s*\/\s*(?:CS|CASE)\b/i) || d.match(/(\d+(?:\.\d+)?)\s*\/\s*(?:CS|CASE|CASES)\b/i) || d.match(/(\d+(?:\.\d+)?)\s*(?:COUNT|CT)\b/i);
  return m?m[1]:'';
 }
 function conversionText(receiptUnit,targetUnit,pack){

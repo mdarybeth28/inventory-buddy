@@ -1370,7 +1370,7 @@ function confirmAllReceiveRows(count){
 // Inventory Buddy cloud sync — Supabase
 const SUPABASE_URL='https://sqdrqqvkvocpivwoyjfh.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_BYiXjevJs_a8lB9ZOrWipw_gI-3C4CO';
-const cookieAuthStorage={getItem:function(k){const parts=document.cookie.split('; ');for(let i=0;i<parts.length;i++){const p=parts[i];const eq=p.indexOf('=');if(eq>0&&p.slice(0,eq)===k)return decodeURIComponent(p.slice(eq+1));}return null;},setItem:function(k,v){document.cookie=k+'='+encodeURIComponent(v)+'; path=/; max-age=31536000; SameSite=Lax; Secure';},removeItem:function(k){document.cookie=k+'=; path=/; max-age=0; SameSite=Lax; Secure';}};const inventoryBuddySupabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+const cookieAuthStorage={getItem:function(k){const parts=document.cookie.split('; ');for(let i=0;i<parts.length;i++){const p=parts[i];const eq=p.indexOf('=');if(eq>0&&p.slice(0,eq)===k)return decodeURIComponent(p.slice(eq+1));}return null;},setItem:function(k,v){document.cookie=k+'='+encodeURIComponent(v)+'; path=/; max-age=31536000; SameSite=Lax; Secure';},removeItem:function(k){document.cookie=k+'=; path=/; max-age=0; SameSite=Lax; Secure';}};const inventoryBuddySupabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{storage:cookieAuthStorage,persistSession:true}});
 let cloudReady=false;
 let cloudSyncTimer=null;
 let cloudSyncBusy=false;

@@ -1363,7 +1363,7 @@ function confirmAllReceiveRows(count){
  persist();
  let msg='<div class="small">'+changed+' existing item(s) updated and '+added+' new item(s) added.'+(skipped?' '+skipped+' row(s) skipped.':'')+'</div>';
  if(problems.length) msg+='<div class="small" style="margin-top:6px">'+esc(problems.join(' • '))+'</div>';
- const banner='<div class="card" style="margin:0 0 10px"><b>✅ Inventory updated</b>'+msg+'</div>';  if(skipped===0){clearReceivePhotos();  document.getElementById('receiveResults').innerHTML=banner;  document.getElementById('receiveStatus').textContent='Ready for the next page.';}else{const rr=document.getElementById('receiveResults');  if(rr.firstElementChild&&rr.firstElementChild.textContent.indexOf('Inventory updated')>=0)rr.firstElementChild.remove();  rr.insertAdjacentHTML('afterbegin',banner);}
+ const banner='<div class="card" style="margin:0 0 10px"><b>✅ Inventory updated</b>'+msg+'</div>';  clearReceivePhotos();  document.getElementById('receiveResults').innerHTML=banner;  document.getElementById('receiveStatus').textContent='Saved — ready for the next page.';
 }
 </script>
 <script>

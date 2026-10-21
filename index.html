@@ -54,7 +54,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
     <div class="small">Signed in as <b id="cloudEmail"></b></div>
     <button type="button" class="secondary" onclick="cloudSignOut()">Sign Out</button>
     <button type="button" class="secondary" onclick="cloudSyncNow()">🔄 Sync Now</button>
-    <button type="button" class="secondary" onclick="togglePasswordForm()">🔐 Change Password</button>
+    <button type="button" class="secondary" onclick="togglePasswordForm()">🔐 Change Password</button> <button type="button" class="secondary" onclick="toggleEmailForm()">📧 Change Email</button><div id="emailChangeForm" class="card hidden" style="margin-top:12px;padding:12px;box-shadow:none;border:1px solid #ddd"><h3 style="margin:0 0 8px">📧 Change Email</h3><label for="newAccountEmail">New email address</label><input id="newAccountEmail" type="email" autocomplete="email" placeholder="you@example.com"><button type="button" class="primary" onclick="changeAccountEmail()">Send Confirmation Link</button><div class="small" style="margin-top:6px">The change finishes when you tap the link sent to the new address.</div></div>
     <div id="passwordChangeForm" class="card hidden" style="margin-top:12px;padding:12px;box-shadow:none;border:1px solid #ddd">
       <h3 style="margin:0 0 8px">🔐 Change Password</h3>
       <label for="newAccountPassword">New password</label>

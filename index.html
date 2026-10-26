@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inventory Buddy — V23</title>
+<title>Inventory Buddy — V27</title>
 <style>
 *{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f5f6f8;color:#222}
 header{background:#1f2937;color:white;padding:24px 18px}h1{margin:0 0 6px;font-size:28px}.sub{opacity:.85}
@@ -38,7 +38,25 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 .order-table th,.order-table td{padding:9px 6px;border-bottom:1px solid #ddd;text-align:left;vertical-align:top}
 .order-total{font-weight:700;margin-top:12px}
 .supplier-list{margin-top:10px}.supplier-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-top:1px solid #eee}.supplier-actions{display:flex;gap:4px;flex-wrap:wrap}
-</style><style>.manual-box{margin-top:14px;padding:12px;border:1px solid #dbeafe;background:#f8fbff;border-radius:12px}.manual-review{margin-top:10px}.manual-row{border-top:1px solid #e5e7eb;padding:10px 0}.manual-row:first-child{border-top:0}</style></head>
+</style><style>.manual-box{margin-top:14px;padding:12px;border:1px solid #dbeafe;background:#f8fbff;border-radius:12px}.manual-review{margin-top:10px}.manual-row{border-top:1px solid #e5e7eb;padding:10px 0}.manual-row:first-child{border-top:0}</style><style>
+/* V27: Quick Count small-screen fixes, fast-scan rows, match notes, pull sheet print */
+@media(max-width:480px){
+ #quick .grid{grid-template-columns:1fr}
+ #quickList .item .row{flex-wrap:wrap}
+ #quickList .item .row>div:first-child{min-width:0;word-break:break-word}
+ #quickList .item .row>div:last-child{flex-shrink:0}
+ .monthly-table input{width:68px;padding:7px}
+}
+.scanrow{display:flex;gap:6px;align-items:center;border-top:1px solid #eee;padding:8px 0;flex-wrap:wrap}
+.scanrow input{margin:0}
+.matchnote{background:#fff3cd;border:1px solid #ffecb5;border-radius:10px;padding:9px 11px;margin:10px 0;font-size:14px;text-align:left}
+.pullsheet-table{width:100%;border-collapse:collapse;margin-top:10px}
+.pullsheet-table th,.pullsheet-table td{border-bottom:1px solid #ddd;padding:7px 6px;text-align:left;font-size:14px}
+@media print{
+ body.print-sheet header,body.print-sheet .nav,body.print-sheet main>*:not(#eom){display:none!important}
+ body.print-sheet #eom .card{box-shadow:none}
+}
+</style></head>
 <body><div id="appReady">✓ Ready</div>
 <header><h1>📦 Inventory Buddy</h1><div class="sub">School inventory, made simpler.</div></header>
 <main>
@@ -77,6 +95,12 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <p class="small">Only your school's account. Every account is walled off from every other account. Your data is never sold and never shared with advertisers.</p>
 <h3 style="margin:10px 0 6px">For administrators</h3>
 <p class="small">Inventory counts are products on shelves — no student information is involved, ever. The pilot is free, there is nothing to install, and it runs in a normal web browser. If your school stops using Inventory Buddy, its account and inventory data can be deleted on request.</p>
+<h3 style="margin:10px 0 6px">Privacy, in plain words</h3>
+<p class="small"><b>What Inventory Buddy stores:</b> your account email and a password (the password is stored scrambled — nobody, including Mary, can read it), and your inventory: product names, quantities, storage locations, and count/delivery dates.</p>
+<p class="small"><b>What it never stores:</b> student names or student records of any kind; meal accounts, balances, or eligibility information; money, prices, or financial information; anything about anybody who is not your own school's account holder.</p>
+<p class="small"><b>Who can see your inventory:</b> only your school's account. Every account is walled off from every other account — signing in shows your school's shelves and nothing else's. Your data is never sold, never shared with advertisers, and never used for anything except running your inventory.</p>
+<p class="small"><b>Where it lives:</b> Inventory Buddy runs on GitHub Pages with its database at Supabase, an established U.S. database provider. Your inventory sits behind your password-protected login.</p>
+<p class="small"><b>Leaving:</b> stop any time — there is nothing to cancel during the pilot. Email Mary and your account and its inventory data will be deleted.</p>
 <p class="small"><b>Questions:</b> Mary Davis — marybeth.davis28@gmail.com · (731) 358-5337</p>
 </div>
 </div>
@@ -110,6 +134,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
   <button type="button" onclick="show('quick')">⚡ Quick Count</button>
   <button type="button" onclick="show('order')">📝 Order List</button>
   <button type="button" onclick="show('monthly')">📅 Monthly Inventory</button>
+  <button type="button" onclick="show('eom')">🗓️ End of Month</button>
 </div>
 
 <div class="grid nav" id="navButtons">
@@ -202,6 +227,28 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 </div>
 </section>
 
+<section id="eom" class="card hidden">
+<h2>🗓️ End of Month</h2>
+<p class="small">A counting tool <b>just for the end of month</b>. Walk the shelves and scan each case — Buddy tallies as you go. When you finish, it compares what you counted against what's already in your list, shows you the differences, and builds your <b>end of month pull sheet</b>: the compiled count on one sheet you can print or save.</p>
+<p class="small"><b>Heads up:</b> this only works right if all your stock is already in Buddy first. Anything that was never entered can't be checked — it will show up as "scanned but not in your list."</p>
+<div id="eomHome">
+<label>Location to count</label>
+<select id="eomLocation"></select>
+<button type="button" class="primary" style="margin-top:8px" onclick="startEom()">▶️ Start Counting</button>
+</div>
+<div id="eomRun" class="hidden">
+<div id="eomStatus" class="small" style="margin-top:8px"></div>
+<div id="eomScanList" style="margin-top:8px"></div>
+<p class="small" id="eomTally" style="margin-top:8px"></p>
+<div class="row no-print" style="flex-wrap:wrap;margin-top:8px"><button type="button" class="primary" onclick="document.getElementById('eomCameraInput').click()">📷 Scan Next Case</button> <button type="button" class="secondary" onclick="document.getElementById('eomUploadInput').click()">⬆️ Upload Photo</button></div>
+<input id="eomCameraInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="readEomLabel(event)">
+<input id="eomUploadInput" type="file" accept="image/*" class="hidden" onchange="readEomLabel(event)">
+<div class="row no-print" style="flex-wrap:wrap;margin-top:10px"><button type="button" class="primary" onclick="finishEom()">✅ Finish &amp; Compare</button> <button type="button" class="danger" onclick="cancelScanSession()">Cancel Count</button></div>
+</div>
+<div id="eomReport" style="margin-top:12px"></div>
+<div id="eomSheetWrap"></div>
+</section>
+
 <section id="suppliers" class="card hidden">
 <h2>🏢 Suppliers</h2>
 <p class="small">Add the suppliers your business uses. You can assign a supplier to each inventory item.</p>
@@ -254,7 +301,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <div id="receiveResults" style="margin-top:12px"></div>
 </section>
 
-<section id="boxlabel" class="card hidden"> <h2>📦 Scan Box Label</h2> <p class="small">Snap a photo of a product box label. The app reads the item code, name, and pack size — check the fields, fix anything, then save it to your inventory.</p> <div class="row" style="flex-wrap:wrap;margin-top:8px"> <button type="button" class="primary" onclick="document.getElementById('boxLabelCameraInput').click()">📷 Take Photo</button> <button type="button" class="secondary" onclick="document.getElementById('boxLabelUploadInput').click()">⬆️ Upload Photo</button> </div> <input id="boxLabelCameraInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="readBoxLabel(event)"> <input id="boxLabelUploadInput" type="file" accept="image/*" class="hidden" onchange="readBoxLabel(event)"> <p class="small" style="margin-top:6px">📷 Camera won't open? Open the app in Safari or Chrome instead of inside Messenger/Facebook — or take the photo first, then tap Upload Photo.</p><div id="boxLabelStatus" class="small" style="margin-top:8px"></div> <label class="small" style="display:block;margin-top:8px"><input type="checkbox" id="fastLoad"> 🔁 <b>Fast load:</b> after each save, open the camera for the next label</label> <div id="boxLabelResult" style="margin-top:12px"></div> </section>  <section id="history" class="card hidden">
+<section id="boxlabel" class="card hidden"> <h2>📦 Scan Box Label</h2> <p class="small">Snap a photo of a product box label. The app reads the item code, name, and pack size — check the fields, fix anything, then save it to your inventory.</p> <div class="row" style="flex-wrap:wrap;margin-top:8px"> <button type="button" class="primary" onclick="document.getElementById('boxLabelCameraInput').click()">📷 Take Photo</button> <button type="button" class="secondary" onclick="document.getElementById('boxLabelUploadInput').click()">⬆️ Upload Photo</button> </div> <input id="boxLabelCameraInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="readBoxLabel(event)"> <input id="boxLabelUploadInput" type="file" accept="image/*" class="hidden" onchange="readBoxLabel(event)"> <p class="small" style="margin-top:6px">📷 Camera won't open? Open the app in Safari or Chrome instead of inside Messenger/Facebook — or take the photo first, then tap Upload Photo.</p><div id="boxLabelStatus" class="small" style="margin-top:8px"></div> <label class="small" style="display:block;margin-top:8px"><input type="checkbox" id="fastLoad"> 🔁 <b>Fast load:</b> after each save, open the camera for the next label</label> <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px"> <button type="button" class="secondary" onclick="startBulkScan()">🚀 Bulk Scan — many cases, one after another</button> <p class="small" style="margin-top:6px">Scanning a whole delivery? Bulk Scan reads each label and lines the cases up — check the codes and counts as they land, then file them all at once.</p> <div id="bulkPanel" class="hidden"> <div id="bulkStatus" class="small" style="margin-top:8px"></div> <label>Location for these cases</label><select id="bulkLocation" onchange="boxLocationChanged(this)"></select> <label>Category for brand-new items</label><select id="bulkCategory"><option>Food</option><option>Paper</option><option>Cleaning</option><option>Beverage</option><option>Supplies</option><option>Other</option></select> <div id="bulkScanList" style="margin-top:8px"></div> <p class="small" id="bulkTally" style="margin-top:8px"></p> <div class="row" style="flex-wrap:wrap;margin-top:8px"><button type="button" class="primary" onclick="document.getElementById('bulkCameraInput').click()">📷 Scan Next Case</button> <button type="button" class="secondary" onclick="document.getElementById('bulkUploadInput').click()">⬆️ Upload Photo</button></div> <input id="bulkCameraInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="readBulkLabel(event)"> <input id="bulkUploadInput" type="file" accept="image/*" class="hidden" onchange="readBulkLabel(event)"> <div class="row" style="flex-wrap:wrap;margin-top:10px"><button type="button" class="primary" onclick="finishBulkScan()">💾 File All These Cases</button> <button type="button" class="danger" onclick="cancelScanSession()">Cancel Bulk Scan</button></div> </div> </div> <div id="boxLabelResult" style="margin-top:12px"></div> </section>  <section id="history" class="card hidden">
 <h2>📋 Order History</h2>
 <p class="small">See what you marked as ordered and when.</p>
 <div id="orderHistoryList"></div>
@@ -286,7 +333,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 25 • Receive Order with photo capture/upload, manual entry, multi-page support, OCR review, item-specific package sizes, usage tracking for opened packages, and box label scanning.</div>
+<div class="card small no-print">Version 27 • Receive Order with photo capture/upload, manual entry, multi-page support, OCR review, item-specific package sizes, usage tracking for opened packages, box label scanning, bulk box-label scanning, end of month counting with pull sheet, and the yellow-label reader fix.</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -653,12 +700,16 @@ function stopScanner(){
  box.classList.add('hidden');
  if(scannerInstance){scannerInstance.stop().then(()=>scannerInstance.clear()).catch(()=>{});scannerInstance=null;}
 }
-function labelNameSane(d){ if(/[¢:\[\]=!]/.test(String(d||''))||String(d||'').indexOf('"')>=0||String(d||'').indexOf('=')>=0||String(d||'').indexOf(String.fromCharCode(92))>=0)return false; const toks=String(d||'').split(/\s+/).filter(Boolean); if(!toks.length)return false; const good=toks.filter(function(w){return w.replace(/[^A-Za-z]/g,'').length>=3;}).length; return good>=2&&(good/toks.length)>=0.25; }function extractBoxLabelInfo(text){  const lines=String(text||'').split(String.fromCharCode(10))//FIXED
+function gordonLabelLines(text){ return String(text||'').split(String.fromCharCode(10)).map(function(l){return l.replace(/\s+/g,' ').trim();}).filter(Boolean); }
+function gordonIsLabel(text,lines){ if(/gordon/i.test(text))return true; if(!/item\s*code/i.test(text))return false; const packRe=/(\d+)\s*[xX\/]\s*(\d+)\b/; return lines.some(function(l){return packRe.test(l)&&/\b\d{5}\b\s*$/.test(l);}); }
+function gordonFixInfo(text,info){ const lines=gordonLabelLines(text); if(!gordonIsLabel(text,lines))return info; const out={code:info.code,description:info.description,packSize:info.packSize,packText:info.packText}; const numOn=function(l){ const m=String(l).match(/\b\d{5,7}\b/); return m?m[0]:''; }; let code=''; const ic=lines.findIndex(function(l){return /item\s*code/i.test(l);}); if(ic>=0){ code=numOn(lines[ic])||(lines[ic+1]?numOn(lines[ic+1]):'')||(lines[ic-1]?numOn(lines[ic-1]):''); } if(!code){ const packRe=/(\d+)\s*[xX\/]\s*(\d+)\b/; const cands=[]; lines.forEach(function(l){ if(/supplier/i.test(l))return; if(packRe.test(l))return; const re=/\b\d{5,7}\b/g; let m; while((m=re.exec(l))){ if(cands.indexOf(m[0])<0)cands.push(m[0]); } }); const joined=lines.join(' ').replace(/\s/g,''); const gs1=cands.filter(function(c){ const f5=c.slice(0,5); return /\d{10,}/.test(joined)&&joined.indexOf(f5)!==joined.lastIndexOf(f5); }); if(cands.length===1)code=cands[0]; else if(gs1.length===1)code=gs1[0]; } if(code)out.code=code; const packRe2=/(\d+)\s*[xX\/]\s*(\d+)\s*(OZ|OUNCE|LB|LBS|GAL|CT|PK|EA|EACH)?\b/i; let dl=''; lines.forEach(function(l){ if(packRe2.test(l)&&l.length>dl.length)dl=l; }); if(dl){ let nm=dl.replace(packRe2,' ').replace(/\b\d{5,14}\b/g,' ').replace(/^(CS|CASE)\b\.?\s*/i,' '); const exp={PPR:'PAPER',FD:'FOOD',CHK:'CHECK',RD:'RED',CO:'',GFS:'',GORDON:'',CHOICE:''}; nm=nm.split(' ').map(function(w){ if(!/[A-Za-z0-9]/.test(w))return ''; const u=w.toUpperCase().replace(/[^A-Z]/g,''); if(Object.prototype.hasOwnProperty.call(exp,u))return exp[u]; const sz=w.match(/^(\d+)Z$/i); if(sz)return sz[1]+' OZ'; if(/^(?=.*\d)[A-Z0-9]{7,}$/i.test(w))return ''; return w; }).filter(Boolean).join(' ').replace(/\s{2,}/g,' ').trim(); const good=nm.split(' ').filter(function(w){return w.replace(/[^A-Za-z]/g,'').length>=3;}).length; if(good>=2)out.description=nm; } return out; }
+function extractBoxLabelInfo(text){ return gordonFixInfo(text,extractBoxLabelInfoBase(text)); }
+function labelNameSane(d){ if(/[¢:\[\]=!]/.test(String(d||''))||String(d||'').indexOf('"')>=0||String(d||'').indexOf('=')>=0||String(d||'').indexOf(String.fromCharCode(92))>=0)return false; const toks=String(d||'').split(/\s+/).filter(Boolean); if(!toks.length)return false; const good=toks.filter(function(w){return w.replace(/[^A-Za-z]/g,'').length>=3;}).length; return good>=2&&(good/toks.length)>=0.25; }function extractBoxLabelInfoBase(text){  const lines=String(text||'').split(String.fromCharCode(10))//FIXED
 async function rotateImage180(file){ return new Promise(function(resolve){ const img=new Image(); img.onload=function(){ try{ const c=document.createElement('canvas'); c.width=img.naturalWidth||img.width; c.height=img.naturalHeight||img.height; const ctx=c.getContext('2d'); ctx.translate(c.width,c.height); ctx.rotate(Math.PI); ctx.drawImage(img,0,0); c.toBlob(function(b){resolve(b||file);},'image/jpeg',0.92); }catch(e){resolve(file);} }; img.onerror=function(){resolve(file);}; img.src=URL.createObjectURL(file); }); }  window.rotateImage180=rotateImage180;
-async function rotateImage90(file){ return new Promise(function(resolve){ const img=new Image(); img.onload=function(){ try{ const c=document.createElement('canvas'); c.width=img.naturalHeight||img.height; c.height=img.naturalWidth||img.width; const ctx=c.getContext('2d'); ctx.translate(c.width/2,c.height/2); ctx.rotate(Math.PI/2); ctx.drawImage(img,-(img.naturalWidth||img.width)/2,-(img.naturalHeight||img.height)/2); c.toBlob(function(b){resolve(b||file);},'image/jpeg',0.92); }catch(e){resolve(file);} }; img.onerror=function(){resolve(file);}; img.src=URL.createObjectURL(file); }); } window.rotateImage90=rotateImage90; let code='';  for(let i=0;i<lines.length&&!code;i++){   if(/item/i.test(lines[i])){    const here=lines[i].match(/\b\d{5,14}\b/);    if(here)code=here[0];    else if(lines[i+1]&&!/supplier/i.test(lines[i+1])){const nx=lines[i+1].match(/\b\d{5,14}\b/);    if(nx)code=nx[0];}   }  }  if(!code){   let codeScore=-1;   lines.forEach(function(l,i){    if(/supplier/i.test(l))return;    const re=/\b\d{5,14}\b/g;let m;    while((m=re.exec(l))){     const pre=l.slice(Math.max(0,m.index-4),m.index); const s=(/item|code|product|sku/i.test(l)?10:0)+(i<5?2:0)+(m[0].length>=8?3:0)+(l.trim()===m[0]?6:0)-(/^\((11|13|15|17)\)$/.test(pre)?50:0);     if(s>codeScore){codeScore=s;code=m[0];}    }   });  }  let packCount=0,packText='',descLine='';  const packRe=/(\d+)\s*[xX\/]\s*(\d+)\s*(OZ|OUNCE|LB|LBS|GAL|CT|PK|EA|EACH)\b/i;  const packBare=/(\d+)\s*[xX]\s*(\d+)\b/;  for(const l of lines){   const pm=l.match(packRe)||l.match(packBare);   if(pm&&l.length>descLine.length){packText=pm[0].toUpperCase().replace(/\s+/g,' ');packCount=pm[3]?Number(pm[1]):Number(pm[1])*Number(pm[2]);descLine=l;}  }  if(!packCount){   for(const l of lines){    const pm=l.match(/\b(\d+)\s*(CT|PK|EA|EACH)\b/i);    if(pm&&l.length>descLine.length){packText=pm[0].toUpperCase();packCount=Number(pm[1]);descLine=l;}   }  }  if(!packCount){   const cRe=/(\d{2,4})\s+(\d+\.\d+)\s*(?:FL\s*)?(OZ|OUNCE|LB|LBS|G|KG|ML)\b/i;   const uRe=/\b(\d{2,4})\s*(POUCHES?|PACKS?|BAGS?|BOTTLES?|CANS?|COUNT)\b/i;   for(const l of lines){    const cm=l.match(cRe);    if(cm&&/(pouch|pack|can|bag|bottle)/i.test(l)){packText=cm[0].toUpperCase().replace(/\s+/g,' ');packCount=Number(cm[1]);break;}    const um=l.match(uRe);    if(um&&l.charAt(um.index-1)!=='('){packText=um[0].toUpperCase();packCount=Number(um[1]);break;}   }  }  let desc=descLine;  if(desc){desc=desc.replace(packRe,' ').replace(packBare,' ').replace(/\b\d{5,14}\b/g,' ').replace(/^(CS|CASE)\b\.?\s*/i,' ').split(' ').filter(function(w){return !(/^(?=.*\d)[A-Z0-9]{7,}$/i.test(w));}).join(' ').replace(/\s{2,}/g,' ').trim();  const di=lines.indexOf(descLine);  const nx=di>=0?lines[di+1]:'';  if(nx&&/[A-Za-z]{3,}/.test(nx)&&!/\b(item code|supplier|brand|order|delivery|route|trip|batch|school|grocery|genesee|valley|district|cafeteria|boulevard|latina)\b/i.test(nx)&&!/^[0-9\s\-\/]+$/.test(nx)&&!packRe.test(nx)&&!packBare.test(nx)){desc=(desc+' '+nx.replace(/\b\d{5,14}\b/g,' ').split(' ').filter(function(w){return !(/^(?=.*\d)[A-Z0-9]{7,}$/i.test(w));}).join(' ')).replace(/\s{2,}/g,' ').trim();}}  if(desc&&!(desc.match(/[A-Za-z]{3,}/g)||[]).length)desc=''; if(!desc){   let bl='';   let blScore=-1; const foodRe=/(dressing|ranch|sauce|milk|cheese|chicken|beef|pork|turkey|bacon|sausage|bread|buns?|rolls?|muffin|bagel|pancake|waffle|syrup|butter|jelly|honey|cereal|crackers?|cookies?|fries|nuggets?|patties|strips|tenders|popcorn|pizza|pasta|rice|beans|corn|peas|carrots?|potatoes|eggs?|flour|sugar|juice|yogurt|cream|soup|salad|lettuce|tomato|onions?|peppers?|franks?|meatballs?|peanut)/gi; for(const l of lines){if(/\b(item code|supplier|brand|order|delivery|route|trip|batch|school|grocery|ship|genesee|valley|district|cafeteria|boulevard|latina|llc|inc)\b/i.test(l))continue; if(!/[A-Za-z]{3,}/.test(l))continue; const sc=(l.match(/[A-Za-z]/g)||[]).length+(l.match(foodRe)||[]).length*60; if(sc>blScore){blScore=sc;bl=l;}}   desc=bl.replace(/\b\d{5,14}\b/g,' ').replace(/\s{2,}/g,' ').trim();  }  if(desc&&!labelNameSane(desc))desc=''; if(desc&&/\b(genesee|valley)\b/i.test(desc)&&!/(dressing|ranch|sauce|milk|cheese|chicken|beef)/i.test(desc))desc=''; if(desc){const toks=desc.split(' ');const junkTok=function(w){const L=(w.match(/[A-Za-z]/g)||[]).length;if(L<2)return true;if(w.length>=4&&/[A-Za-z]/.test(w)&&!/[AEIOUaeiou]/.test(w)&&L>=3)return true;return false;};while(toks.length&&junkTok(toks[0]))toks.shift();while(toks.length&&junkTok(toks[toks.length-1]))toks.pop();desc=toks.join(' ').replace(/\s{2,}/g,' ').trim();if(desc&&!labelNameSane(desc))desc='';} return {code:code,description:desc,packSize:packCount,packText:packText}; } function mergeLabelInfo(a,b){ const foodRe=/(dressing|ranch|sauce|milk|cheese|chicken|beef|pork|turkey|bacon|sausage|bread|buns?|rolls?|muffin|bagel|pancake|waffle|syrup|butter|jelly|honey|cereal|crackers?|cookies?|fries|nuggets?|patties|strips|tenders|popcorn|pizza|pasta|rice|beans|corn|peas|carrots?|potatoes|eggs?|flour|sugar|juice|yogurt|cream|soup|salad|lettuce|tomato|onions?|peppers?|franks?|meatballs?|peanut)/i; const pick=function(x,y){ if(!x)return y||''; if(!y)return x; if(foodRe.test(y)&&!foodRe.test(x))return y; if(labelNameSane(y)&&!labelNameSane(x))return y; return x; }; return {code:a.code||b.code,description:pick(a.description,b.description),packSize:a.packSize||b.packSize,packText:a.packText||b.packText}; } async function readBoxLabel(event){  const file=event.target.files&&event.target.files[0];  if(!file)return;  const status=document.getElementById('boxLabelStatus');  const box=document.getElementById('boxLabelResult');  box.innerHTML='';  try{   const r=await ocrFile(file,1,1,status);   let info=extractBoxLabelInfo(r.text); if(!labelNameSane(info.description)||(!info.code&&!info.packSize)){status.textContent='That read looks incomplete - trying the photo turned around...'; const rf=await rotateImage180(file); const r2=await ocrFile(rf,1,1,status); const info2=extractBoxLabelInfo(r2.text); info=mergeLabelInfo(info,info2); if(!labelNameSane(info.description)||(!info.code&&!info.packSize)){status.textContent='Still thin - trying the photo sideways...'; const sf=await rotateImage90(file); const r3=await ocrFile(sf,1,1,status); info=mergeLabelInfo(info,extractBoxLabelInfo(r3.text));}}   renderBoxLabelResult(info);   status.textContent=(info.code||info.description)?'Label read — check the fields, fix anything wrong, then save.':'Could not read the label clearly. Try a closer, straight-on photo with the label filling the picture.';  if(!info.description&&info.code)status.textContent='I read the item code but could not read the name - type the name in, then save.'; }catch(e){status.textContent='Could not read the label: '+((e&&e.message)?e.message:e);}  event.target.value=''; } function renderBoxLabelResult(info){  const box=document.getElementById('boxLabelResult');  box.innerHTML='<div class="card" style="margin-top:10px"><b>Label details</b><p class="small">Check and fix anything the camera misread, then save.</p>'  +'<label>Item code</label><input id="blCode" value="'+esc(info.code)+'">'  +'<label>Item name</label><input id="blName" value="'+esc(info.description)+'">'  +'<label>Pack size (items per case)</label><input id="blPack" type="number" min="0" step="1" value="'+(info.packSize||'')+'" placeholder="Example: 100">'  +'<label>Unit</label><select id="blUnit"><option>cases</option><option>crates</option><option>boxes</option><option>cans</option><option>bags</option><option>packs</option><option>each</option><option>pounds</option><option>gallons</option></select>'  +'<label>Quantity on hand</label><input id="blQty" type="number" min="0" step="0.01" value="1">'  +'<label>Category</label><select id="LocationCategory"><option>Food</option><option>Paper</option><option>Cleaning</option><option>Beverage</option><option>Supplies</option><option>Other</option></select>'  +'<label>Location</label><select id="blLocation" onchange="boxLocationChanged(this)">'+locationOptionsHTML(localStorage.getItem('ibBlLocation')||'')+'</select>'  +'<div class="row" style="margin-top:10px;flex-wrap:wrap"><button type="button" class="primary" onclick="saveBoxLabelItem()">💾 Save to Inventory</button></div></div>'; } function saveBoxLabelItem(){  const name=document.getElementById('blName').value.trim();  if(!name)return alert('Please enter an item name.');  const code=document.getElementById('blCode').value.trim();  const addQty=Number(document.getElementById('blQty').value||0);  const blLoc=document.getElementById('blLocation').value.trim();  localStorage.setItem('ibBlLocation',blLoc);  let match=null;  if(code){match=items.find(function(x){return x.barcode&&String(x.barcode).trim()===code;});}  if(!match){const nl=name.toLowerCase();  match=items.find(function(x){return x.name&&x.name.trim().toLowerCase()===nl;});}  let matched=false;  let locClash='';  if(match){const savedLoc=match.location?String(match.location).trim():'';  if(savedLoc&&blLoc&&savedLoc.toLowerCase()!==blLoc.toLowerCase())locClash=savedLoc;  match.qty=Number(match.qty||0)+addQty;  if(!match.packSize)match.packSize=Number(document.getElementById('blPack').value||0);  if(!match.location&&blLoc)match.location=blLoc;  matched=true;}else{items.push({id:Date.now(),name:name,cat:document.getElementById('LocationCategory').value,location:blLoc,unit:document.getElementById('blUnit').value,packSize:Number(document.getElementById('blPack').value||0),qty:addQty,min:0,orderQty:0,barcode:code,supplierId:''});}  persist();  document.getElementById('boxLabelResult').innerHTML='';  document.getElementById('boxLabelStatus').textContent=(matched?('Matched: '+match.name+' — added '+addQty+', now '+match.qty+' ✓ Ready for the next label.'):('Saved: '+name+' ✓ Ready for the next label.'))+(locClash?(' ⚠ Careful: '+match.name+' is marked as being in '+locClash+', but you just scanned it as '+blLoc+'.'):'');  const fl=document.getElementById('fastLoad');  if(fl&&fl.checked){document.getElementById('boxLabelCameraInput').click();} } function show(id){
+async function rotateImage90(file){ return new Promise(function(resolve){ const img=new Image(); img.onload=function(){ try{ const c=document.createElement('canvas'); c.width=img.naturalHeight||img.height; c.height=img.naturalWidth||img.width; const ctx=c.getContext('2d'); ctx.translate(c.width/2,c.height/2); ctx.rotate(Math.PI/2); ctx.drawImage(img,-(img.naturalWidth||img.width)/2,-(img.naturalHeight||img.height)/2); c.toBlob(function(b){resolve(b||file);},'image/jpeg',0.92); }catch(e){resolve(file);} }; img.onerror=function(){resolve(file);}; img.src=URL.createObjectURL(file); }); } window.rotateImage90=rotateImage90; let code='';  for(let i=0;i<lines.length&&!code;i++){   if(/item/i.test(lines[i])){    const here=lines[i].match(/\b\d{5,14}\b/);    if(here)code=here[0];    else if(lines[i+1]&&!/supplier/i.test(lines[i+1])){const nx=lines[i+1].match(/\b\d{5,14}\b/);    if(nx)code=nx[0];}   }  }  if(!code){   let codeScore=-1;   lines.forEach(function(l,i){    if(/supplier/i.test(l))return;    const re=/\b\d{5,14}\b/g;let m;    while((m=re.exec(l))){     const pre=l.slice(Math.max(0,m.index-4),m.index); const s=(/item|code|product|sku/i.test(l)?10:0)+(i<5?2:0)+(m[0].length>=8?3:0)+(l.trim()===m[0]?6:0)-(/^\((11|13|15|17)\)$/.test(pre)?50:0);     if(s>codeScore){codeScore=s;code=m[0];}    }   });  }  let packCount=0,packText='',descLine='';  const packRe=/(\d+)\s*[xX\/]\s*(\d+)\s*(OZ|OUNCE|LB|LBS|GAL|CT|PK|EA|EACH)\b/i;  const packBare=/(\d+)\s*[xX]\s*(\d+)\b/;  for(const l of lines){   const pm=l.match(packRe)||l.match(packBare);   if(pm&&l.length>descLine.length){packText=pm[0].toUpperCase().replace(/\s+/g,' ');packCount=pm[3]?Number(pm[1]):Number(pm[1])*Number(pm[2]);descLine=l;}  }  if(!packCount){   for(const l of lines){    const pm=l.match(/\b(\d+)\s*(CT|PK|EA|EACH)\b/i);    if(pm&&l.length>descLine.length){packText=pm[0].toUpperCase();packCount=Number(pm[1]);descLine=l;}   }  }  if(!packCount){   const cRe=/(\d{2,4})\s+(\d+\.\d+)\s*(?:FL\s*)?(OZ|OUNCE|LB|LBS|G|KG|ML)\b/i;   const uRe=/\b(\d{2,4})\s*(POUCHES?|PACKS?|BAGS?|BOTTLES?|CANS?|COUNT)\b/i;   for(const l of lines){    const cm=l.match(cRe);    if(cm&&/(pouch|pack|can|bag|bottle)/i.test(l)){packText=cm[0].toUpperCase().replace(/\s+/g,' ');packCount=Number(cm[1]);break;}    const um=l.match(uRe);    if(um&&l.charAt(um.index-1)!=='('){packText=um[0].toUpperCase();packCount=Number(um[1]);break;}   }  }  let desc=descLine;  if(desc){desc=desc.replace(packRe,' ').replace(packBare,' ').replace(/\b\d{5,14}\b/g,' ').replace(/^(CS|CASE)\b\.?\s*/i,' ').split(' ').filter(function(w){return !(/^(?=.*\d)[A-Z0-9]{7,}$/i.test(w));}).join(' ').replace(/\s{2,}/g,' ').trim();  const di=lines.indexOf(descLine);  const nx=di>=0?lines[di+1]:'';  if(nx&&/[A-Za-z]{3,}/.test(nx)&&!/\b(item code|supplier|brand|order|delivery|route|trip|batch|school|grocery|genesee|valley|district|cafeteria|boulevard|latina)\b/i.test(nx)&&!/^[0-9\s\-\/]+$/.test(nx)&&!packRe.test(nx)&&!packBare.test(nx)){desc=(desc+' '+nx.replace(/\b\d{5,14}\b/g,' ').split(' ').filter(function(w){return !(/^(?=.*\d)[A-Z0-9]{7,}$/i.test(w));}).join(' ')).replace(/\s{2,}/g,' ').trim();}}  if(desc&&!(desc.match(/[A-Za-z]{3,}/g)||[]).length)desc=''; if(!desc){   let bl='';   let blScore=-1; const foodRe=/(dressing|ranch|sauce|milk|cheese|chicken|beef|pork|turkey|bacon|sausage|bread|buns?|rolls?|muffin|bagel|pancake|waffle|syrup|butter|jelly|honey|cereal|crackers?|cookies?|fries|nuggets?|patties|strips|tenders|popcorn|pizza|pasta|rice|beans|corn|peas|carrots?|potatoes|eggs?|flour|sugar|juice|yogurt|cream|soup|salad|lettuce|tomato|onions?|peppers?|franks?|meatballs?|peanut)/gi; for(const l of lines){if(/\b(item code|supplier|brand|order|delivery|route|trip|batch|school|grocery|ship|genesee|valley|district|cafeteria|boulevard|latina|llc|inc)\b/i.test(l))continue; if(!/[A-Za-z]{3,}/.test(l))continue; const sc=(l.match(/[A-Za-z]/g)||[]).length+(l.match(foodRe)||[]).length*60; if(sc>blScore){blScore=sc;bl=l;}}   desc=bl.replace(/\b\d{5,14}\b/g,' ').replace(/\s{2,}/g,' ').trim();  }  if(desc&&!labelNameSane(desc))desc=''; if(desc&&/\b(genesee|valley)\b/i.test(desc)&&!/(dressing|ranch|sauce|milk|cheese|chicken|beef)/i.test(desc))desc=''; if(desc){const toks=desc.split(' ');const junkTok=function(w){const L=(w.match(/[A-Za-z]/g)||[]).length;if(L<2)return true;if(w.length>=4&&/[A-Za-z]/.test(w)&&!/[AEIOUaeiou]/.test(w)&&L>=3)return true;return false;};while(toks.length&&junkTok(toks[0]))toks.shift();while(toks.length&&junkTok(toks[toks.length-1]))toks.pop();desc=toks.join(' ').replace(/\s{2,}/g,' ').trim();if(desc&&!labelNameSane(desc))desc='';} return {code:code,description:desc,packSize:packCount,packText:packText}; } function mergeLabelInfo(a,b){ const foodRe=/(dressing|ranch|sauce|milk|cheese|chicken|beef|pork|turkey|bacon|sausage|bread|buns?|rolls?|muffin|bagel|pancake|waffle|syrup|butter|jelly|honey|cereal|crackers?|cookies?|fries|nuggets?|patties|strips|tenders|popcorn|pizza|pasta|rice|beans|corn|peas|carrots?|potatoes|eggs?|flour|sugar|juice|yogurt|cream|soup|salad|lettuce|tomato|onions?|peppers?|franks?|meatballs?|peanut)/i; const pick=function(x,y){ if(!x)return y||''; if(!y)return x; if(foodRe.test(y)&&!foodRe.test(x))return y; if(labelNameSane(y)&&!labelNameSane(x))return y; return x; }; return {code:a.code||b.code,description:pick(a.description,b.description),packSize:a.packSize||b.packSize,packText:a.packText||b.packText}; } async function readBoxLabel(event){  const file=event.target.files&&event.target.files[0];  if(!file)return;  const status=document.getElementById('boxLabelStatus');  const box=document.getElementById('boxLabelResult');  box.innerHTML='';  try{   const r=await ocrFile(file,1,1,status);   let info=extractBoxLabelInfo(r.text); if(!labelNameSane(info.description)||(!info.code&&!info.packSize)){status.textContent='That read looks incomplete - trying the photo turned around...'; const rf=await rotateImage180(file); const r2=await ocrFile(rf,1,1,status); const info2=extractBoxLabelInfo(r2.text); info=mergeLabelInfo(info,info2); if(!labelNameSane(info.description)||(!info.code&&!info.packSize)){status.textContent='Still thin - trying the photo sideways...'; const sf=await rotateImage90(file); const r3=await ocrFile(sf,1,1,status); info=mergeLabelInfo(info,extractBoxLabelInfo(r3.text));}}   renderBoxLabelResult(info);   status.textContent=(info.code||info.description)?'Label read — check the fields, fix anything wrong, then save.':'Could not read the label clearly. Try a closer, straight-on photo with the label filling the picture.';  if(!info.description&&info.code)status.textContent='I read the item code but could not read the name - type the name in, then save.'; }catch(e){status.textContent='Could not read the label: '+((e&&e.message)?e.message:e);}  event.target.value=''; } function renderBoxLabelResult(info){  const box=document.getElementById('boxLabelResult');  box.innerHTML='<div class="card" style="margin-top:10px"><b>Label details</b><p class="small">Check and fix anything the camera misread, then save.</p>'+boxLabelMatchNote(info)+'<label>Item code</label><input id="blCode" value="'+esc(info.code)+'">'  +'<label>Item name</label><input id="blName" value="'+esc(info.description)+'">'  +'<label>Pack size (items per case)</label><input id="blPack" type="number" min="0" step="1" value="'+(info.packSize||'')+'" placeholder="Example: 100">'  +'<label>Unit</label><select id="blUnit"><option>cases</option><option>crates</option><option>boxes</option><option>cans</option><option>bags</option><option>packs</option><option>each</option><option>pounds</option><option>gallons</option></select>'  +'<label>Quantity on hand</label><input id="blQty" type="number" min="0" step="0.01" value="1">'  +'<label>Category</label><select id="LocationCategory"><option>Food</option><option>Paper</option><option>Cleaning</option><option>Beverage</option><option>Supplies</option><option>Other</option></select>'  +'<label>Location</label><select id="blLocation" onchange="boxLocationChanged(this)">'+locationOptionsHTML(localStorage.getItem('ibBlLocation')||'')+'</select>'  +'<div class="row" style="margin-top:10px;flex-wrap:wrap"><button type="button" class="primary" onclick="saveBoxLabelItem()">💾 Save to Inventory</button></div></div>'; } function saveBoxLabelItem(){  const name=document.getElementById('blName').value.trim();  if(!name)return alert('Please enter an item name.');  const code=document.getElementById('blCode').value.trim();  const addQty=Number(document.getElementById('blQty').value||0);  const blLoc=document.getElementById('blLocation').value.trim();  localStorage.setItem('ibBlLocation',blLoc);  let match=null;  if(code){match=items.find(function(x){return x.barcode&&String(x.barcode).trim()===code;});}  if(!match){const nl=name.toLowerCase();  match=items.find(function(x){return x.name&&x.name.trim().toLowerCase()===nl;});}  let matched=false;  let locClash='';  if(match){const savedLoc=match.location?String(match.location).trim():'';  if(savedLoc&&blLoc&&savedLoc.toLowerCase()!==blLoc.toLowerCase())locClash=savedLoc;  match.qty=Number(match.qty||0)+addQty;  if(!match.packSize)match.packSize=Number(document.getElementById('blPack').value||0);  if(!match.location&&blLoc)match.location=blLoc;  matched=true;}else{items.push({id:Date.now(),name:name,cat:document.getElementById('LocationCategory').value,location:blLoc,unit:document.getElementById('blUnit').value,packSize:Number(document.getElementById('blPack').value||0),qty:addQty,min:0,orderQty:0,barcode:code,supplierId:''});}  persist();  document.getElementById('boxLabelResult').innerHTML='';  document.getElementById('boxLabelStatus').textContent=(matched?('Matched: '+match.name+' — added '+addQty+', now '+match.qty+' ✓ Ready for the next label.'):('Saved: '+name+' ✓ Ready for the next label.'))+(locClash?(' ⚠ Careful: '+match.name+' is marked as being in '+locClash+', but you just scanned it as '+blLoc+'.'):'');  noteSessionScan(code); const fl=document.getElementById('fastLoad');  if(fl&&fl.checked){document.getElementById('boxLabelCameraInput').click();} } function show(id){
   const savedScroll = window.scrollY;
  if(id!=='add') stopScanner();
- ['add','inventory','low','order','monthly','quick','history','suppliers','receive','boxlabel'].forEach(x=>{
+ ['add','inventory','low','order','monthly','quick','history','suppliers','receive','boxlabel','eom'].forEach(x=>{
    const el=document.getElementById(x);
    if(el) el.classList.toggle('hidden',x!==id);
  });
@@ -1536,5 +1587,217 @@ async function cloudSignOut(){await inventoryBuddySupabase.auth.signOut();cloudR
 async function cloudSyncNow(){if(!cloudReady)return alert('Sign in first.');if(!items.length){if(!confirm('This screen shows 0 items. Syncing will empty the cloud list for your account too. Only do this if you truly emptied your list on purpose. Continue?'))return;await syncToCloud(true);}else await syncToCloud(false);}
 (async function initCloudSync(){try{inventoryBuddySupabase.auth.onAuthStateChange((event,session)=>{if(event==='TOKEN_REFRESHED')return;if(session)loadCloudData();else{cloudReady=false;updateAuthUI(null);}});const {data:{session}}=await inventoryBuddySupabase.auth.getSession();if(session)await loadCloudData();else updateAuthUI(null);}catch(err){console.error(err);cloudStatus('Cloud setup could not start.');}})();
 </script>
+<script>
+// ── V27: scan-time match catch, fast-scan sessions (Bulk Scan + End of Month) ──
+window.__ibSessionScans = window.__ibSessionScans || [];
+function noteSessionScan(code){ code=String(code||'').trim(); if(code)window.__ibSessionScans.push(code); }
+function itemsWithCode(code){ try{ return items.filter(function(x){return x.barcode&&String(x.barcode).trim()===String(code).trim();}); }catch(e){ return []; } }
+function locsOfMatches(matches){ const locs=[]; matches.forEach(function(m){ const L=m.location?String(m.location).trim():''; if(L&&locs.indexOf(L)<0)locs.push(L); }); return locs; }
+function boxLabelMatchNote(info){
+  const code=String((info&&info.code)||'').trim(); if(!code)return '';
+  let h='';
+  const matches=itemsWithCode(code);
+  if(matches.length){
+    const locs=locsOfMatches(matches);
+    const qty=matches.reduce(function(a,m){return a+Number(m.qty||0);},0);
+    h+='<div class="matchnote">⚠ <b>Already in your list:</b> '+esc(matches[0].name||'')+' — on hand: '+qty+(locs.length?(' • also in: '+locs.map(esc).join(', ')):'')+'<br><span class="small">Saving adds to that count — check the quantity before you save.</span></div>';
+  }
+  if(window.__ibSessionScans.indexOf(code)>=0){
+    h+='<div class="matchnote">⚠ <b>You already scanned this box in this run.</b> Saving again would count it twice.</div>';
+  }
+  return h;
+}
+function scanInListTag(code){
+  const matches=itemsWithCode(code); if(!matches.length)return '';
+  const locs=locsOfMatches(matches);
+  return ' <span class="badge" style="background:#f8d7da;color:#842029">⚠ already in your list'+(locs.length?(' — also in: '+locs.map(esc).join(', ')):'')+'</span>';
+}
+
+// ── Fast-scan session engine (shared by Bulk Scan and End of Month) ──
+let scanSession=null; // {mode:'bulk'|'eom', location:'', entries:[{code,name,packSize,packText,count}], report:null}
+async function fastScanPhoto(file,statusEl){
+  const r=await ocrFile(file,1,1,statusEl);
+  let info=extractBoxLabelInfo(r.text);
+  if(!info.code&&!info.packSize){
+    statusEl.textContent='That read was thin — trying the photo turned around...';
+    const rf=await rotateImage180(file);
+    const r2=await ocrFile(rf,1,1,statusEl);
+    info=mergeLabelInfo(info,extractBoxLabelInfo(r2.text));
+  }
+  return info;
+}
+function scanSessionAdd(info){
+  const code=String(info.code||'').trim();
+  const ex=scanSession.entries.find(function(e){return code&&e.code===code;});
+  if(ex){ ex.count++; if(!ex.name&&info.description)ex.name=info.description; if(!ex.packSize&&info.packSize)ex.packSize=info.packSize; }
+  else scanSession.entries.push({code:code,name:info.description||'',packSize:info.packSize||0,packText:info.packText||'',count:1});
+}
+function scanEntriesHTML(){
+  const s=scanSession; if(!s||!s.entries.length)return '<p class="small">Nothing scanned yet. Point the camera at each case label — every scan lands here.</p>';
+  return s.entries.map(function(e,i){
+    return '<div class="scanrow"><input style="flex:0 0 88px" value="'+esc(e.code)+'" onchange="scanEntryEdit('+i+',\'code\',this.value)" aria-label="Item code">'
+      +'<input style="flex:1;min-width:110px" value="'+esc(e.name)+'" placeholder="Item name" onchange="scanEntryEdit('+i+',\'name\',this.value)" aria-label="Item name">'
+      +'<span class="small">'+(e.packText?esc(e.packText):'')+scanInListTag(e.code)+'</span>'
+      +'<button type="button" class="secondary" style="font-size:19px;min-width:42px" onclick="scanEntryCount('+i+',-1)">−</button>'
+      +'<strong style="min-width:24px;text-align:center">'+e.count+'</strong>'
+      +'<button type="button" class="primary" style="font-size:19px;min-width:42px" onclick="scanEntryCount('+i+',1)">+</button>'
+      +'<button type="button" class="danger" onclick="scanEntryRemove('+i+')">✕</button></div>';
+  }).join('');
+}
+function renderScanSession(){
+  const s=scanSession; if(!s)return;
+  const cases=s.entries.reduce(function(a,e){return a+e.count;},0);
+  const tally=cases+' case'+(cases===1?'':'s')+' • '+s.entries.length+' different item'+(s.entries.length===1?'':'s');
+  if(s.mode==='bulk'){
+    document.getElementById('bulkScanList').innerHTML=scanEntriesHTML();
+    document.getElementById('bulkTally').textContent=tally;
+  }else{
+    document.getElementById('eomScanList').innerHTML=scanEntriesHTML();
+    document.getElementById('eomTally').textContent='Counted so far: '+tally;
+  }
+}
+function scanEntryEdit(i,f,v){ if(!scanSession)return; scanSession.entries[i][f]=String(v||'').trim(); renderScanSession(); }
+function scanEntryCount(i,d){ if(!scanSession)return; scanSession.entries[i].count=Math.max(0,scanSession.entries[i].count+d); renderScanSession(); }
+function scanEntryRemove(i){ if(!scanSession)return; scanSession.entries.splice(i,1); renderScanSession(); }
+function cancelScanSession(){
+  const mode=scanSession?scanSession.mode:'';
+  scanSession=null;
+  if(mode==='bulk'){ const p=document.getElementById('bulkPanel'); if(p)p.classList.add('hidden'); }
+  if(mode==='eom'){ const r=document.getElementById('eomRun'); if(r)r.classList.add('hidden'); const h=document.getElementById('eomHome'); if(h)h.classList.remove('hidden'); }
+}
+
+// ── Bulk Scan (in the Box Label section) ──
+function startBulkScan(){
+  scanSession={mode:'bulk',location:'',entries:[],report:null};
+  const loc=document.getElementById('bulkLocation');
+  if(loc)loc.innerHTML=locationOptionsHTML(localStorage.getItem('ibBlLocation')||'');
+  document.getElementById('bulkPanel').classList.remove('hidden');
+  document.getElementById('bulkStatus').textContent='Ready — scan the first case.';
+  renderScanSession();
+}
+async function readBulkLabel(event){
+  const file=event.target.files&&event.target.files[0]; event.target.value='';
+  if(!file||!scanSession)return;
+  const status=document.getElementById('bulkStatus');
+  status.textContent='Reading label...';
+  try{
+    const info=await fastScanPhoto(file,status);
+    if(!info.code&&!info.description){ status.textContent='Could not read that label — try a closer, straight-on photo.'; return; }
+    scanSessionAdd(info);
+    noteSessionScan(info.code);
+    status.textContent='Scanned: '+(info.description||info.code||'case')+' ✓ Scan the next case, or file them all when you are done.';
+    renderScanSession();
+  }catch(e){ status.textContent='Could not read the label: '+((e&&e.message)?e.message:e); }
+}
+function finishBulkScan(){
+  const s=scanSession; if(!s||!s.entries.length)return alert('Scan at least one case first.');
+  const locEl=document.getElementById('bulkLocation'); const loc=locEl?locEl.value.trim():'';
+  if(loc)localStorage.setItem('ibBlLocation',loc);
+  const catEl=document.getElementById('bulkCategory'); const cat=catEl?catEl.value:'Food';
+  let added=0, matched=0;
+  for(const e of s.entries){
+    if(!e.count)continue;
+    let match=null;
+    if(e.code)match=items.find(function(x){return x.barcode&&String(x.barcode).trim()===e.code;});
+    if(!match&&e.name){ const nl=e.name.toLowerCase(); match=items.find(function(x){return x.name&&x.name.trim().toLowerCase()===nl;}); }
+    if(match){ match.qty=Number(match.qty||0)+e.count; if(!match.packSize&&e.packSize)match.packSize=e.packSize; if(!match.location&&loc)match.location=loc; matched++; }
+    else{
+      if(!e.name){ alert('One scanned case has no name ('+(e.code||'no code read')+'). Type its name in the list, then file again.'); return; }
+      items.push({id:Date.now()+added,name:e.name,cat:cat,location:loc,unit:'cases',packSize:Number(e.packSize||0),qty:e.count,min:0,orderQty:0,barcode:e.code,supplierId:''}); added++;
+    }
+  }
+  persist();
+  const total=s.entries.reduce(function(a,e){return a+e.count;},0);
+  document.getElementById('bulkStatus').textContent='Filed '+total+' case'+(total===1?'':'s')+' ✓ ('+matched+' added to items already in your list, '+added+' new item'+(added===1?'':'s')+' started.)';
+  scanSession.entries=[]; renderScanSession();
+}
+
+// ── End of Month ──
+function startEom(){
+  const sel=document.getElementById('eomLocation');
+  if(sel&&!sel.options.length){
+    let h='<option value="">All locations</option>';
+    try{ allLocationNames().forEach(function(n){ h+='<option value="'+esc(n)+'">'+esc(n)+'</option>'; }); }catch(e){}
+    sel.innerHTML=h;
+  }
+  scanSession={mode:'eom',location:sel?sel.value:'',entries:[],report:null};
+  document.getElementById('eomHome').classList.add('hidden');
+  document.getElementById('eomRun').classList.remove('hidden');
+  document.getElementById('eomReport').innerHTML='';
+  document.getElementById('eomSheetWrap').innerHTML='';
+  document.getElementById('eomStatus').textContent='Counting'+(scanSession.location?(' — '+scanSession.location):' — all locations')+'. Scan each case on the shelf.';
+  renderScanSession();
+}
+async function readEomLabel(event){
+  const file=event.target.files&&event.target.files[0]; event.target.value='';
+  if(!file||!scanSession)return;
+  const status=document.getElementById('eomStatus');
+  status.textContent='Reading label...';
+  try{
+    const info=await fastScanPhoto(file,status);
+    if(!info.code&&!info.description){ status.textContent='Could not read that label — try a closer, straight-on photo.'; return; }
+    scanSessionAdd(info);
+    status.textContent='Counted: '+(info.description||info.code||'case')+' ✓ Keep going — scan the next case.';
+    renderScanSession();
+  }catch(e){ status.textContent='Could not read the label: '+((e&&e.message)?e.message:e); }
+}
+function finishEom(){
+  const s=scanSession; if(!s)return;
+  if(!s.entries.length)return alert('Scan at least one case first — or tap Cancel Count.');
+  const loc=s.location||'';
+  const counted={}; const order=[];
+  s.entries.forEach(function(e){ if(e.code){ if(!(e.code in counted))order.push(e.code); counted[e.code]=(counted[e.code]||0)+e.count; } });
+  const rows=[]; const seen={};
+  items.filter(function(it){ return !loc||(it.location||'').trim().toLowerCase()===loc.toLowerCase(); }).forEach(function(it){
+    const c=String(it.barcode||'').trim(); const sc=c?(counted[c]||0):0; if(c)seen[c]=1;
+    rows.push({id:it.id,name:it.name,code:c,loc:it.location||'',unit:it.unit||'',buddy:Number(it.qty||0),counted:sc,extra:false});
+  });
+  order.forEach(function(code){ if(!seen[code]){ const e=s.entries.find(function(x){return x.code===code;}); rows.push({id:null,name:(e&&e.name)||'(no name read)',code:code,loc:loc,unit:'cases',buddy:0,counted:counted[code],extra:true,packSize:e?e.packSize:0}); } });
+  s.report=rows;
+  const off=rows.filter(function(r){return r.buddy!==r.counted;});
+  let h='<div class="card" style="margin-top:10px"><b>End of month — compare</b>';
+  h+='<p class="small">Each scan counted as one case. <b>In Buddy</b> is the count already saved; <b>Counted</b> is what you scanned just now. Rows that differ are marked ⚠.</p>';
+  h+='<table class="pullsheet-table"><tr><th>Item</th><th>In Buddy</th><th>Counted</th><th></th></tr>';
+  rows.forEach(function(r){ h+='<tr><td>'+esc(r.name)+(r.extra?' <span class="badge">not in your list</span>':'')+'</td><td>'+r.buddy+'</td><td>'+r.counted+'</td><td>'+(r.buddy===r.counted?'✓':'⚠')+'</td></tr>'; });
+  h+='</table>';
+  h+='<p class="small" style="margin-top:8px">'+(off.length?('<b>'+off.length+' difference'+(off.length===1?'':'s')+' to look at.</b>'):'<b>Everything matches.</b> Nice counting.')+'</p>';
+  h+='<div class="row no-print" style="flex-wrap:wrap;margin-top:8px"><button type="button" class="primary" onclick="applyEomCounts()">💾 Update Buddy With These Counts</button> <button type="button" class="secondary" onclick="buildPullSheet()">🧾 Build Pull Sheet</button></div>';
+  h+='<p class="small">Updating Buddy sets each counted item to the number you scanned. Items you did not scan are set to 0'+(loc?(' in '+esc(loc)):'')+'. Scanned items that are not in your list get added.</p></div>';
+  document.getElementById('eomReport').innerHTML=h;
+}
+function applyEomCounts(){
+  const s=scanSession; if(!s||!s.report)return;
+  if(!confirm('Update Buddy with these end-of-month counts? This replaces the on-hand numbers for the items in this count.'))return;
+  s.report.forEach(function(r){
+    if(r.id){ const it=items.find(function(x){return x.id===r.id;}); if(it)it.qty=r.counted; }
+    else if(r.extra){ items.push({id:Date.now()+Math.floor(Math.random()*100000),name:r.name==='(no name read)'?('Item '+r.code):r.name,cat:'Food',location:r.loc||'',unit:'cases',packSize:Number(r.packSize||0),qty:r.counted,min:0,orderQty:0,barcode:r.code,supplierId:''}); }
+  });
+  persist();
+  document.getElementById('eomReport').innerHTML='<div class="card" style="margin-top:10px"><b>✓ Buddy is updated with your end-of-month counts.</b><p class="small" style="margin-bottom:0">Now build the pull sheet below if you need the sheet to turn in.</p><div class="row no-print" style="flex-wrap:wrap;margin-top:8px"><button type="button" class="primary" onclick="buildPullSheet()">🧾 Build Pull Sheet</button></div></div>';
+}
+function buildPullSheet(){
+  const s=scanSession; if(!s||!s.report)return;
+  const biz=(document.getElementById('businessName')&&document.getElementById('businessName').value)||'Inventory Buddy';
+  const today=new Date().toLocaleDateString();
+  const countedRows=s.report.filter(function(r){return r.counted>0;});
+  const off=s.report.filter(function(r){return r.buddy!==r.counted;});
+  let h='<div class="card" style="margin-top:10px"><h3 style="margin-top:0">🧾 End of Month Pull Sheet</h3>';
+  h+='<p class="small">'+esc(biz)+' • Counted: '+today+(s.location?(' • Location: '+esc(s.location)):' • All locations')+'</p>';
+  h+='<table class="pullsheet-table"><tr><th>Item</th><th>Location</th><th>Count</th></tr>';
+  countedRows.forEach(function(r){ h+='<tr><td>'+esc(r.name)+'</td><td>'+esc(r.loc||'')+'</td><td>'+r.counted+' '+esc(r.unit||'')+'</td></tr>'; });
+  h+='</table>';
+  if(off.length){
+    h+='<h4 style="margin:14px 0 4px">Differences (in Buddy vs counted)</h4><table class="pullsheet-table"><tr><th>Item</th><th>In Buddy</th><th>Counted</th></tr>';
+    off.forEach(function(r){ h+='<tr><td>'+esc(r.name)+(r.extra?' (not in list)':'')+'</td><td>'+r.buddy+'</td><td>'+r.counted+'</td></tr>'; });
+    h+='</table>';
+  }
+  h+='<div class="row no-print" style="flex-wrap:wrap;margin-top:12px"><button type="button" class="primary" onclick="printPullSheet()">🖨️ Print / Save Sheet</button></div>';
+  h+='<p class="small">Print it, or save it as a PDF from the print screen — the sheet is yours to hand in however your office takes it.</p></div>';
+  document.getElementById('eomSheetWrap').innerHTML=h;
+  document.getElementById('eomSheetWrap').scrollIntoView({behavior:'smooth'});
+}
+function printPullSheet(){ document.body.classList.add('print-sheet'); try{ window.print(); }finally{ setTimeout(function(){ document.body.classList.remove('print-sheet'); },500); } }
+</script>
 </body>
+
 </html>

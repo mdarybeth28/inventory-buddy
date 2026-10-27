@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inventory Buddy — V27</title>
+<title>Inventory Buddy — V27.1</title>
 <style>
 *{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f5f6f8;color:#222}
 header{background:#1f2937;color:white;padding:24px 18px}h1{margin:0 0 6px;font-size:28px}.sub{opacity:.85}
@@ -160,7 +160,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <label>Minimum stock</label><input id="min" type="number" min="0" step="0.1" placeholder="2">
 <label>Normal order quantity</label><input id="orderQty" type="number" min="0" step="0.1" placeholder="4">
 <label>Barcode (optional)</label>
-<div class="row"><input id="barcode" inputmode="numeric" placeholder="Type barcode (optional)" style="margin-bottom:10px"></div>
+<div class="row"><input id="barcode" inputmode="numeric" placeholder="Type barcode (optional)" style="margin-bottom:10px"></div><div class="row" style="margin-top:-4px;margin-bottom:10px"><button type="button" class="secondary" onclick="startScanner()">📷 Scan Barcode</button></div>
 <div class="small" style="margin-top:-4px;margin-bottom:8px">Adding a whole case? 📦 <b>Box Label</b> is faster — it reads the case label for you. This form is for typing an item in by hand.</div>
 <label>Supplier</label>
 <select id="supplierId"><option value="">No supplier assigned</option></select>
@@ -240,9 +240,9 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <div id="eomStatus" class="small" style="margin-top:8px"></div>
 <div id="eomScanList" style="margin-top:8px"></div>
 <p class="small" id="eomTally" style="margin-top:8px"></p>
-<div class="row no-print" style="flex-wrap:wrap;margin-top:8px"><button type="button" class="primary" onclick="document.getElementById('eomCameraInput').click()">📷 Scan Next Case</button> <button type="button" class="secondary" onclick="document.getElementById('eomUploadInput').click()">⬆️ Upload Photo</button></div>
+<div class="row no-print" style="flex-wrap:wrap;margin-top:8px"><button type="button" class="primary" onclick="startSessionBarcode('eomReader','eomStatus')">🔫 Scan Barcodes — Case After Case</button> <button type="button" class="primary" onclick="document.getElementById('eomCameraInput').click()">📷 Scan Next Case</button> <button type="button" class="secondary" onclick="document.getElementById('eomUploadInput').click()">⬆️ Upload Photo</button></div>
 <input id="eomCameraInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="readEomLabel(event)">
-<input id="eomUploadInput" type="file" accept="image/*" class="hidden" onchange="readEomLabel(event)">
+<input id="eomUploadInput" type="file" accept="image/*" class="hidden" onchange="readEomLabel(event)"><div id="eomReader" style="width:100%;max-width:500px;margin:10px auto"></div><div class="row" id="eomReaderStop" style="display:none;justify-content:center;margin-top:6px"><button type="button" class="secondary" onclick="stopSessionBarcode()">⏹ Done Scanning</button></div>
 <div class="row no-print" style="flex-wrap:wrap;margin-top:10px"><button type="button" class="primary" onclick="finishEom()">✅ Finish &amp; Compare</button> <button type="button" class="danger" onclick="cancelScanSession()">Cancel Count</button></div>
 </div>
 <div id="eomReport" style="margin-top:12px"></div>
@@ -301,7 +301,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <div id="receiveResults" style="margin-top:12px"></div>
 </section>
 
-<section id="boxlabel" class="card hidden"> <h2>📦 Scan Box Label</h2> <p class="small">Snap a photo of a product box label. The app reads the item code, name, and pack size — check the fields, fix anything, then save it to your inventory.</p> <div class="row" style="flex-wrap:wrap;margin-top:8px"> <button type="button" class="primary" onclick="document.getElementById('boxLabelCameraInput').click()">📷 Take Photo</button> <button type="button" class="secondary" onclick="document.getElementById('boxLabelUploadInput').click()">⬆️ Upload Photo</button> </div> <input id="boxLabelCameraInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="readBoxLabel(event)"> <input id="boxLabelUploadInput" type="file" accept="image/*" class="hidden" onchange="readBoxLabel(event)"> <p class="small" style="margin-top:6px">📷 Camera won't open? Open the app in Safari or Chrome instead of inside Messenger/Facebook — or take the photo first, then tap Upload Photo.</p><div id="boxLabelStatus" class="small" style="margin-top:8px"></div> <label class="small" style="display:block;margin-top:8px"><input type="checkbox" id="fastLoad"> 🔁 <b>Fast load:</b> after each save, open the camera for the next label</label> <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px"> <button type="button" class="secondary" onclick="startBulkScan()">🚀 Bulk Scan — many cases, one after another</button> <p class="small" style="margin-top:6px">Scanning a whole delivery? Bulk Scan reads each label and lines the cases up — check the codes and counts as they land, then file them all at once.</p> <div id="bulkPanel" class="hidden"> <div id="bulkStatus" class="small" style="margin-top:8px"></div> <label>Location for these cases</label><select id="bulkLocation" onchange="boxLocationChanged(this)"></select> <label>Category for brand-new items</label><select id="bulkCategory"><option>Food</option><option>Paper</option><option>Cleaning</option><option>Beverage</option><option>Supplies</option><option>Other</option></select> <div id="bulkScanList" style="margin-top:8px"></div> <p class="small" id="bulkTally" style="margin-top:8px"></p> <div class="row" style="flex-wrap:wrap;margin-top:8px"><button type="button" class="primary" onclick="document.getElementById('bulkCameraInput').click()">📷 Scan Next Case</button> <button type="button" class="secondary" onclick="document.getElementById('bulkUploadInput').click()">⬆️ Upload Photo</button></div> <input id="bulkCameraInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="readBulkLabel(event)"> <input id="bulkUploadInput" type="file" accept="image/*" class="hidden" onchange="readBulkLabel(event)"> <div class="row" style="flex-wrap:wrap;margin-top:10px"><button type="button" class="primary" onclick="finishBulkScan()">💾 File All These Cases</button> <button type="button" class="danger" onclick="cancelScanSession()">Cancel Bulk Scan</button></div> </div> </div> <div id="boxLabelResult" style="margin-top:12px"></div> </section>  <section id="history" class="card hidden">
+<section id="boxlabel" class="card hidden"> <h2>📦 Scan Box Label</h2> <p class="small">Snap a photo of a product box label. The app reads the item code, name, and pack size — check the fields, fix anything, then save it to your inventory.</p> <div class="row" style="flex-wrap:wrap;margin-top:8px"> <button type="button" class="primary" onclick="document.getElementById('boxLabelCameraInput').click()">📷 Take Photo</button> <button type="button" class="secondary" onclick="document.getElementById('boxLabelUploadInput').click()">⬆️ Upload Photo</button> </div> <input id="boxLabelCameraInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="readBoxLabel(event)"> <input id="boxLabelUploadInput" type="file" accept="image/*" class="hidden" onchange="readBoxLabel(event)"> <p class="small" style="margin-top:6px">📷 Camera won't open? Open the app in Safari or Chrome instead of inside Messenger/Facebook — or take the photo first, then tap Upload Photo.</p><div id="boxLabelStatus" class="small" style="margin-top:8px"></div> <label class="small" style="display:block;margin-top:8px"><input type="checkbox" id="fastLoad"> 🔁 <b>Fast load:</b> after each save, open the camera for the next label</label> <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px"> <button type="button" class="secondary" onclick="startBulkScan()">🚀 Bulk Scan — many cases, one after another</button> <p class="small" style="margin-top:6px">Scanning a whole delivery? Bulk Scan reads each label and lines the cases up — check the codes and counts as they land, then file them all at once.</p> <div id="bulkPanel" class="hidden"> <div id="bulkStatus" class="small" style="margin-top:8px"></div> <label>Location for these cases</label><select id="bulkLocation" onchange="boxLocationChanged(this)"></select> <label>Category for brand-new items</label><select id="bulkCategory"><option>Food</option><option>Paper</option><option>Cleaning</option><option>Beverage</option><option>Supplies</option><option>Other</option></select> <div id="bulkScanList" style="margin-top:8px"></div> <p class="small" id="bulkTally" style="margin-top:8px"></p> <div class="row" style="flex-wrap:wrap;margin-top:8px"><button type="button" class="primary" onclick="startSessionBarcode('bulkReader','bulkStatus')">🔫 Scan Barcodes — Case After Case</button> <button type="button" class="primary" onclick="document.getElementById('bulkCameraInput').click()">📷 Scan Next Case</button> <button type="button" class="secondary" onclick="document.getElementById('bulkUploadInput').click()">⬆️ Upload Photo</button></div> <input id="bulkCameraInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="readBulkLabel(event)"> <input id="bulkUploadInput" type="file" accept="image/*" class="hidden" onchange="readBulkLabel(event)"><div id="bulkReader" style="width:100%;max-width:500px;margin:10px auto"></div><div class="row" id="bulkReaderStop" style="display:none;justify-content:center;margin-top:6px"><button type="button" class="secondary" onclick="stopSessionBarcode()">⏹ Done Scanning</button></div> <div class="row" style="flex-wrap:wrap;margin-top:10px"><button type="button" class="primary" onclick="finishBulkScan()">💾 File All These Cases</button> <button type="button" class="danger" onclick="cancelScanSession()">Cancel Bulk Scan</button></div> </div> </div> <div id="boxLabelResult" style="margin-top:12px"></div> </section>  <section id="history" class="card hidden">
 <h2>📋 Order History</h2>
 <p class="small">See what you marked as ordered and when.</p>
 <div id="orderHistoryList"></div>
@@ -333,7 +333,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 27 • Receive Order with photo capture/upload, manual entry, multi-page support, OCR review, item-specific package sizes, usage tracking for opened packages, box label scanning, bulk box-label scanning, end of month counting with pull sheet, and the yellow-label reader fix.</div>
+<div class="card small no-print">Version 27.1 • Receive Order with photo capture/upload, manual entry, multi-page support, OCR review, item-specific package sizes, usage tracking for opened packages, box label scanning, bulk box-label scanning, end of month counting with pull sheet, and the yellow-label reader fix.</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -528,7 +528,7 @@ function useItems(id){
 }
 function list(data){splitLocMap=buildSplitLocMap();return data.length?data.map(itemHTML).join(''):'<p class="small">Nothing here yet.</p>'}
 function render(){
- inventoryList.innerHTML=list(items);
+ const sq=(document.getElementById('searchBox')?.value||'').toLowerCase().trim(); const shown=sq?items.filter(i=>String(i.name||'').toLowerCase().includes(sq)||String(i.barcode||'').includes(sq)):items; inventoryList.innerHTML=list(shown);
  const low=items.filter(i=>Number(i.min)>0 && Number(i.qty)<=Number(i.min));lowList.innerHTML=list(low);
  const orderBox=document.getElementById('orderList'); if(orderBox) orderBox.innerHTML=low.length?low.map(i=>`<div class="item"><b>${esc(i.name)}</b> — order <b>${i.orderQty||'needed'}</b> ${esc(i.unit)} <span class="small">(${i.cat})</span></div>`).join(''):'<p class="small">Nothing needs ordering.</p>';
  document.getElementById('statItems').textContent=items.length;
@@ -1797,6 +1797,77 @@ function buildPullSheet(){
   document.getElementById('eomSheetWrap').scrollIntoView({behavior:'smooth'});
 }
 function printPullSheet(){ document.body.classList.add('print-sheet'); try{ window.print(); }finally{ setTimeout(function(){ document.body.classList.remove('print-sheet'); },500); } }
+</script>
+
+<script>
+// ── V27.1: live barcode reader for Bulk Scan + End of Month sessions ──
+// Point the camera at each case's barcode; every read lands in the session
+// list, same as a photo read. Photo buttons stay as the fallback (and are
+// how a brand-new item gets its name read off the label).
+(function(){
+  var sessScanner=null, sessLastCode='', sessLastAt=0, sessStatusId='bulkStatus';
+  function deriveSessCode(raw){
+    var s=String(raw||'').trim();
+    var digits=s.replace(/\D/g,'');
+    var pool=(typeof items!=='undefined'&&Array.isArray(items))?items:[];
+    var i, b;
+    for(i=0;i<pool.length;i++){ b=String(pool[i].barcode||'').trim(); if(b&&b===s) return {code:b, item:pool[i]}; }
+    if(digits){
+      for(i=0;i<pool.length;i++){ b=String(pool[i].barcode||'').trim(); if(b&&b===digits) return {code:b, item:pool[i]}; }
+      for(i=0;i<pool.length;i++){ b=String(pool[i].barcode||'').trim(); if(b.length>=5 && digits.indexOf(b)>=0) return {code:b, item:pool[i]}; }
+      return {code:digits, item:null};
+    }
+    return {code:s, item:null};
+  }
+  function onSessScan(text){
+    var raw=String(text||'').trim(); if(!raw) return;
+    var now=Date.now();
+    if(raw===sessLastCode && (now-sessLastAt)<3000) return;
+    sessLastCode=raw; sessLastAt=now;
+    if(!scanSession) return;
+    var d=deriveSessCode(raw);
+    var info={code:d.code, description:(d.item?String(d.item.name||''):''), packSize:(d.item?Number(d.item.packSize||0):0), packText:''};
+    scanSessionAdd(info);
+    noteSessionScan(info.code);
+    var st=document.getElementById(sessStatusId);
+    if(st) st.textContent='Scanned: '+(info.description||info.code||'case')+' \u2713 — point at the next case.';
+    renderScanSession();
+    try{ if(navigator.vibrate) navigator.vibrate(50); }catch(e){}
+  }
+  window.startSessionBarcode=function(readerId, statusId){
+    if(sessScanner) return;
+    sessStatusId=statusId||sessStatusId;
+    var box=document.getElementById(readerId); if(!box) return;
+    var st=document.getElementById(sessStatusId);
+    if(typeof Html5Qrcode==='undefined'){ if(st) st.textContent='Barcode scanner could not load — the photo buttons still work.'; return; }
+    box.innerHTML='';
+    sessScanner=new Html5Qrcode(readerId);
+    var cfg=(typeof scannerConfig==='function')?scannerConfig():{fps:12};
+    if(st) st.textContent='Scanner on — point at each case barcode.';
+    var stopRow=document.getElementById(readerId+'Stop'); if(stopRow) stopRow.style.display='';
+    Html5Qrcode.getCameras().then(function(cams){
+      var id=null;
+      if(cams&&cams.length){ var pref=null; for(var i=0;i<cams.length;i++){ if(/back|rear|environment/i.test(cams[i].label)){ pref=cams[i]; break; } } id=(pref||cams[0]).id; }
+      if(!sessScanner) return null;
+      return id ? sessScanner.start(id, cfg, onSessScan, function(){}) : sessScanner.start({facingMode:'environment'}, cfg, onSessScan, function(){});
+    }).catch(function(){
+      var s2=document.getElementById(sessStatusId);
+      if(s2) s2.textContent='Camera could not open for barcode scanning — the photo buttons still work.';
+      sessScanner=null;
+      var sr=document.getElementById(readerId+'Stop'); if(sr) sr.style.display='none';
+    });
+  };
+  window.stopSessionBarcode=function(){
+    if(sessScanner){ var sc=sessScanner; sessScanner=null; try{ sc.stop().then(function(){ try{ sc.clear(); }catch(e){} }).catch(function(){}); }catch(e){} }
+    ['bulkReader','eomReader'].forEach(function(id){
+      var r=document.getElementById(id); if(r) r.innerHTML='';
+      var sr=document.getElementById(id+'Stop'); if(sr) sr.style.display='none';
+    });
+  };
+  if(typeof finishBulkScan==='function'){ var ofb=finishBulkScan; window.finishBulkScan=function(){ window.stopSessionBarcode(); return ofb.apply(this, arguments); }; }
+  if(typeof cancelScanSession==='function'){ var ocs=cancelScanSession; window.cancelScanSession=function(){ window.stopSessionBarcode(); return ocs.apply(this, arguments); }; }
+  if(typeof finishEom==='function'){ var ofe=finishEom; window.finishEom=function(){ var r=ofe.apply(this, arguments); window.stopSessionBarcode(); return r; }; }
+})();
 </script>
 </body>
 

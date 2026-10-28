@@ -333,7 +333,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 27.2 • Receive Order with photo capture/upload, manual entry, multi-page support, OCR review, item-specific package sizes, usage tracking for opened packages, box label scanning, bulk box-label scanning, end of month counting with pull sheet, and the yellow-label reader fix.</div>
+<div class="card small no-print">Version 28 • Fast-add barcode scanning (scan, check, save, next case), First Load photo pile in Bulk Scan, forgot-password reset by email, a plain-words How-To, and Reach Mary — email or text — built in. Plus everything from before: receive order, box labels, bulk scan, end of month counting with pull sheet.</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1935,6 +1935,195 @@ function printPullSheet(){ document.body.classList.add('print-sheet'); try{ wind
   };
   var origReadBoxLabel=readBoxLabel;
   window.readBoxLabel=function(event){ window.__flBarcode=false; return origReadBoxLabel.apply(this, arguments); };
+})();
+</script>
+
+<script>
+// ── V28: fast-add scan loop, First Load photo pile, forgot password, How-To, Reach Mary ──
+(function(){
+  // Shared scan-code derivation — the same rules Bulk Scan and End of Month
+  // already use: exact match, digit match, then a known item code (5+ digits)
+  // found inside a longer case string. Returns the item when it is known.
+  function derive28(raw){
+    var s=String(raw||'').trim();
+    var digits=s.replace(/\D/g,'');
+    var pool=(typeof items!=='undefined'&&Array.isArray(items))?items:[];
+    var i,b;
+    for(i=0;i<pool.length;i++){ b=String(pool[i].barcode||'').trim(); if(b&&b===s) return {code:b,item:pool[i]}; }
+    if(digits){
+      for(i=0;i<pool.length;i++){ b=String(pool[i].barcode||'').trim(); if(b&&b===digits) return {code:b,item:pool[i]}; }
+      for(i=0;i<pool.length;i++){ b=String(pool[i].barcode||'').trim(); if(b.length>=5&&digits.indexOf(b)>=0) return {code:b,item:pool[i]}; }
+      return {code:digits,item:null};
+    }
+    return {code:s,item:null};
+  }
+  window.deriveScanCode28=derive28;
+
+  // FAST ADD: a scan that used to only fill the Add Item barcode box (the
+  // slow full-form path) now lands on the short Box Label review card.
+  // 'use' and 'boxlabel' scans keep their existing doors untouched.
+  var prevOnScan=window.onScanSuccess;
+  window.onScanSuccess=function(decodedText){
+    if(scannerMode==='boxlabel'||scannerMode==='use'){ return prevOnScan.apply(this,arguments); }
+    var raw=String(decodedText||'').trim();
+    if(!raw){ return prevOnScan.apply(this,arguments); }
+    stopScanner();
+    var d=derive28(raw);
+    window.__flBarcode=true;
+    show('boxlabel');
+    renderBoxLabelResult({code:d.code, description:(d.item?String(d.item.name||''):'') , packSize:(d.item?Number(d.item.packSize||0):0), packText:''});
+    var st=document.getElementById('boxLabelStatus');
+    if(st) st.textContent=d.item
+      ? 'Scanned — that is '+String(d.item.name||'')+', already in your list. Check the quantity, tap Save, and the scanner reopens for the next case.'
+      : 'Scanned — brand new item, so type its name once and tap Save. From then on, Buddy knows this case by its barcode.';
+    var res=document.getElementById('boxLabelResult');
+    if(res&&res.scrollIntoView) res.scrollIntoView({block:'start'});
+    try{ if(navigator.vibrate) navigator.vibrate(50); }catch(e){}
+  };
+
+  // THE LOOP: after a barcode-born card saves, reopen the scanner for the
+  // next case. (When the Fast load box is ticked, the save already reopens
+  // the right reader — this covers the unticked case for scans only.)
+  var prevSave=window.saveBoxLabelItem;
+  window.saveBoxLabelItem=function(){
+    var wasBarcode=!!window.__flBarcode;
+    prevSave.apply(this,arguments);
+    var res=document.getElementById('boxLabelResult');
+    var savedOk=!!(res&&res.innerHTML==='');
+    if(savedOk&&wasBarcode){
+      window.__flBarcode=false;
+      var fl=document.getElementById('fastLoad');
+      if(!(fl&&fl.checked)){
+        setTimeout(function(){ try{ window.startBoxLabelScanner(); }catch(e){} },700);
+      }
+    }
+  };
+
+  // FIRST LOAD — a pile of photos at once. Feeds the Bulk Scan list: every
+  // photo is read, readable labels line up for review, and photos with no
+  // readable label are COUNTED and reported — never silently dropped.
+  window.startFirstLoadPhotos=async function(event){
+    var files=event.target.files; event.target.value='';
+    if(!files||!files.length) return;
+    if(typeof scanSession!=='undefined'&&scanSession&&scanSession.mode==='eom'){ alert('Finish or cancel the End of Month count first, then bring your photos.'); return; }
+    if(!scanSession||scanSession.mode!=='bulk'){ startBulkScan(); }
+    var status=document.getElementById('bulkStatus');
+    var list=Array.prototype.slice.call(files);
+    var read=0, missed=0, i, info;
+    for(i=0;i<list.length;i++){
+      if(status) status.textContent='Reading photo '+(i+1)+' of '+list.length+'...';
+      try{
+        info=await fastScanPhoto(list[i],status);
+        if(info&&(info.code||info.description)){ scanSessionAdd(info); noteSessionScan(info.code); read++; }
+        else missed++;
+      }catch(e){ missed++; }
+      renderScanSession();
+    }
+    if(status) status.textContent='Photo pile done: read '+read+' of '+list.length+' photos.'
+      +(missed?(' '+missed+' photo'+(missed===1?'':'s')+' did not show a label I could read, so those cases are NOT in the list — retake those closer, or add them by hand.'):'')
+      +' Check the list, fix any names, set the location above, then tap File All These Cases.';
+    var bp=document.getElementById('bulkPanel');
+    if(bp&&bp.scrollIntoView) bp.scrollIntoView({block:'start'});
+  };
+
+  // Add the First Load button + multi-photo picker under Bulk Scan.
+  function addFirstLoadUI(){
+    var bp=document.getElementById('bulkPanel'); if(!bp||!bp.parentElement) return;
+    if(document.getElementById('firstLoadBox')) return;
+    var div=document.createElement('div');
+    div.id='firstLoadBox';
+    div.style.marginTop='14px'; div.style.borderTop='1px solid #eee'; div.style.paddingTop='12px';
+    div.innerHTML='<button type="button" class="secondary" onclick="document.getElementById(\'firstLoadInput\').click()">🖼️ First Load — a Pile of Photos at Once</button>'
+      +'<p class="small" style="margin-top:6px">Loading a whole kitchen? Snap a photo of each case label while the delivery lands, then pick ALL the photos here at once. Buddy reads every label, lines the cases up in the Bulk Scan list above, and tells you straight if a photo could not be read.</p>'
+      +'<input id="firstLoadInput" type="file" accept="image/*" multiple class="hidden" onchange="startFirstLoadPhotos(event)">';
+    bp.parentElement.appendChild(div);
+  }
+
+  // FORGOT PASSWORD: button on the sign-in form + recovery landing.
+  window.forgotPassword28=async function(){
+    var emEl=document.getElementById('authEmail');
+    var em=(emEl&&emEl.value||'').trim();
+    if(!em||em.indexOf('@')<0){ alert('Type your email in the Email box first, then tap Forgot password.'); return; }
+    try{
+      var redirect=window.location.origin+window.location.pathname;
+      var r=await inventoryBuddySupabase.auth.resetPasswordForEmail(em,{redirectTo:redirect});
+      if(r&&r.error){ alert('Could not send the reset email: '+r.error.message); return; }
+      alert('Check your email — a password reset link is on its way to '+em+'. Tap the link in that email, and Buddy will let you set a new password right here.');
+    }catch(e){ alert('Could not send the reset email. Please try again.'); }
+  };
+  function addForgotUI(){
+    var af=document.getElementById('authForm'); if(!af) return;
+    if(document.getElementById('forgotPwBtn')) return;
+    var b=document.createElement('button');
+    b.type='button'; b.id='forgotPwBtn'; b.className='secondary'; b.style.marginTop='8px';
+    b.textContent='Forgot password?';
+    b.onclick=function(){ window.forgotPassword28(); };
+    af.appendChild(b);
+    var note=document.createElement('div');
+    note.className='small'; note.style.marginTop='6px';
+    note.textContent='Forgot your password? Type your email above, tap Forgot password, and we will email you a link to set a new one.';
+    af.appendChild(note);
+  }
+  try{
+    inventoryBuddySupabase.auth.onAuthStateChange(function(event){
+      if(event==='PASSWORD_RECOVERY'){
+        setTimeout(function(){
+          var card=document.getElementById('cloudSyncCard');
+          if(card&&card.scrollIntoView) card.scrollIntoView({block:'start'});
+          var f=document.getElementById('passwordChangeForm');
+          if(f&&f.classList.contains('hidden')&&typeof togglePasswordForm==='function') togglePasswordForm();
+          alert('You came in from your reset link, so you are signed in. The Change Password box is open — type your NEW password, type it again, then tap Save New Password.');
+        },900);
+      }
+    });
+  }catch(e){}
+
+  // HOW-TO: plain-words guide at the top of About & Privacy.
+  function addHowTo(){
+    var ap=document.getElementById('aboutPrivacy'); if(!ap) return;
+    if(document.getElementById('howToBox')) return;
+    var div=document.createElement('div');
+    div.id='howToBox';
+    div.innerHTML='<h3 style="margin:6px 0">📖 How to use Inventory Buddy</h3>'
+      +'<p class="small"><b>Your first load is the slow part — three ways to make it fast:</b><br>'
+      +'1) <b>Paper invoice:</b> open <b>Receive Order</b> and take a photo of the delivery sheet. Buddy reads the rows and builds the items — you just check them.<br>'
+      +'2) <b>Box labels:</b> open <b>Box Label → Bulk Scan</b> and snap each case label, one after another, then file them all at once.<br>'
+      +'3) <b>A pile of photos:</b> snap a photo of each label while the delivery lands, then use <b>First Load</b> (in the Box Label section) and pick all the photos at once. Buddy lines them up for you to check. If a photo can not be read, Buddy says so — it never guesses.</p>'
+      +'<p class="small"><b>Bring a helper:</b> somebody at your school that you trust can sign in with your login and help you load — and later on, take out boxes as they get used up. Two sets of hands make the first load go twice as fast.</p>'
+      +'<p class="small"><b>Adding a case, day to day:</b> Box Label → <b>Scan Barcode</b>. A short card pops up — check the quantity, tap Save, and the scanner reopens for the next case. A brand-new case asks for its name once; after that, Buddy knows it by its barcode.</p>'
+      +'<p class="small"><b>Using things up:</b> on the Inventory screen, <b>Scan Barcode to Use</b> takes out what you opened.</p>'
+      +'<p class="small"><b>End of month:</b> End of Month mode walks you shelf by shelf and builds the pull sheet to turn in.</p>'
+      +'<p class="small"><b>If a scan reads wrong:</b> do not fight with it. Take a screenshot of what it showed you, plus a photo of the paper or label, and send both to Mary with <b>Reach Mary</b> below. That is what she needs to fix it. Your paperwork stays yours — she does not keep it, and she never shares your information.</p>'
+      +'<p class="small"><b>Forgot your password?</b> On the sign-in screen, type your email and tap <b>Forgot password</b> — a link to set a new one comes to your email.</p>';
+    ap.insertBefore(div, ap.firstChild);
+  }
+
+  // REACH MARY: one tap to email or text, right inside Buddy.
+  window.toggleReachMary=function(){
+    var p=document.getElementById('reachMary');
+    if(p) p.classList.toggle('hidden');
+  };
+  function addReachMary(){
+    var ap=document.getElementById('aboutPrivacy'); if(!ap||!ap.parentElement) return;
+    if(document.getElementById('reachMaryBtn')) return;
+    var wrap=document.createElement('div');
+    wrap.style.marginTop='10px';
+    wrap.innerHTML='<button type="button" class="secondary" id="reachMaryBtn" onclick="toggleReachMary()">💬 Reach Mary</button>'
+      +'<div id="reachMary" class="hidden" style="margin-top:10px;text-align:left">'
+      +'<p class="small">Stuck, or a scan read wrong? Send Mary a <b>screenshot of what it showed you</b> plus a <b>photo of the paper or label</b> — that is what she needs to fix it. She does not keep your paperwork, and she never shares your information.</p>'
+      +'<div class="row" style="flex-wrap:wrap;gap:8px">'
+      +'<button type="button" class="primary" onclick="location.href=\'mailto:marybeth.davis28@gmail.com?subject=Inventory%20Buddy%20help&amp;body=Hi%20Mary%20%E2%80%94%20I%20need%20a%20hand%20with%20Inventory%20Buddy.%0A%0AWhat%20happened%3A%20%0A%0A(I%20attached%20a%20screenshot%20of%20what%20it%20showed%20me%2C%20and%20a%20photo%20of%20the%20paper%20or%20label.)\'">📧 Email Mary</button>'
+      +'<button type="button" class="primary" onclick="location.href=\'sms:+17313585337?&amp;body=Hi%20Mary%20%E2%80%94%20I%20need%20a%20hand%20with%20Inventory%20Buddy.\'">💬 Text Mary</button>'
+      +'</div>'
+      +'<p class="small" style="margin-top:6px">Email: marybeth.davis28@gmail.com · Text: (731) 358-5337</p>'
+      +'</div>';
+    ap.parentElement.appendChild(wrap);
+  }
+
+  addFirstLoadUI();
+  addForgotUI();
+  addHowTo();
+  addReachMary();
 })();
 </script>
 </body>

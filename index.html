@@ -333,7 +333,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 28 • Fast-add barcode scanning (scan, check, save, next case), First Load photo pile in Bulk Scan, forgot-password reset by email, a plain-words How-To, and Reach Mary — email or text — built in. Plus everything from before: receive order, box labels, bulk scan, end of month counting with pull sheet.</div>
+<div class="card small no-print">Version 28.1 • Fast-add barcode scanning (scan, check, save, next case), First Load photo pile in Bulk Scan, forgot-password reset by email, a plain-words How-To, and Reach Mary — email or text — built in. Plus everything from before: receive order, box labels, bulk scan, end of month counting with pull sheet.</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -2104,7 +2104,7 @@ function printPullSheet(){ document.body.classList.add('print-sheet'); try{ wind
     if(p) p.classList.toggle('hidden');
   };
   function addReachMary(){
-    var ap=document.getElementById('aboutPrivacy'); if(!ap||!ap.parentElement) return;
+    var host=document.getElementById('signedInBox'); if(!host) return;
     if(document.getElementById('reachMaryBtn')) return;
     var wrap=document.createElement('div');
     wrap.style.marginTop='10px';
@@ -2117,7 +2117,7 @@ function printPullSheet(){ document.body.classList.add('print-sheet'); try{ wind
       +'</div>'
       +'<p class="small" style="margin-top:6px">Email: marybeth.davis28@gmail.com · Text: (731) 358-5337</p>'
       +'</div>';
-    ap.parentElement.appendChild(wrap);
+    host.appendChild(wrap);
   }
 
   addFirstLoadUI();

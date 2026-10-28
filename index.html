@@ -333,7 +333,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 28.1 • Fast-add barcode scanning (scan, check, save, next case), First Load photo pile in Bulk Scan, forgot-password reset by email, a plain-words How-To, and Reach Mary — email or text — built in. Plus everything from before: receive order, box labels, bulk scan, end of month counting with pull sheet.</div>
+<div class="card small no-print">Version 28.2 • Fast-add barcode scanning (scan, check, save, next case), First Load photo pile in Bulk Scan, forgot-password reset by email, a plain-words How-To, and Reach Mary — email or text — built in. Plus everything from before: receive order, box labels, bulk scan, end of month counting with pull sheet.</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -2003,12 +2003,15 @@ function printPullSheet(){ document.body.classList.add('print-sheet'); try{ wind
   // photo is read, readable labels line up for review, and photos with no
   // readable label are COUNTED and reported — never silently dropped.
   window.startFirstLoadPhotos=async function(event){
-    var files=event.target.files; event.target.value='';
-    if(!files||!files.length) return;
+    var list=Array.prototype.slice.call((event.target&&event.target.files)||[]);
+    event.target.value='';
+    if(!list.length) return;
+    var flStatus=document.getElementById('firstLoadStatus');
+    try{
     if(typeof scanSession!=='undefined'&&scanSession&&scanSession.mode==='eom'){ alert('Finish or cancel the End of Month count first, then bring your photos.'); return; }
     if(!scanSession||scanSession.mode!=='bulk'){ startBulkScan(); }
+    if(flStatus) flStatus.textContent='Reading your photos... watch the Bulk Scan list above.';
     var status=document.getElementById('bulkStatus');
-    var list=Array.prototype.slice.call(files);
     var read=0, missed=0, i, info;
     for(i=0;i<list.length;i++){
       if(status) status.textContent='Reading photo '+(i+1)+' of '+list.length+'...';
@@ -2024,6 +2027,8 @@ function printPullSheet(){ document.body.classList.add('print-sheet'); try{ wind
       +' Check the list, fix any names, set the location above, then tap File All These Cases.';
     var bp=document.getElementById('bulkPanel');
     if(bp&&bp.scrollIntoView) bp.scrollIntoView({block:'start'});
+    if(flStatus) flStatus.textContent='';
+    }catch(err){ if(flStatus) flStatus.textContent=''; alert('First Load hit a snag: '+((err&&err.message)?err.message:err)); }
   };
 
   // Add the First Load button + multi-photo picker under Bulk Scan.
@@ -2035,7 +2040,7 @@ function printPullSheet(){ document.body.classList.add('print-sheet'); try{ wind
     div.style.marginTop='14px'; div.style.borderTop='1px solid #eee'; div.style.paddingTop='12px';
     div.innerHTML='<button type="button" class="secondary" onclick="document.getElementById(\'firstLoadInput\').click()">🖼️ First Load — a Pile of Photos at Once</button>'
       +'<p class="small" style="margin-top:6px">Loading a whole kitchen? Snap a photo of each case label while the delivery lands, then pick ALL the photos here at once. Buddy reads every label, lines the cases up in the Bulk Scan list above, and tells you straight if a photo could not be read.</p>'
-      +'<input id="firstLoadInput" type="file" accept="image/*" multiple class="hidden" onchange="startFirstLoadPhotos(event)">';
+      +'<input id="firstLoadInput" type="file" accept="image/*" multiple class="hidden" onchange="startFirstLoadPhotos(event)"><div id="firstLoadStatus" class="small" style="margin-top:6px"></div>';
     bp.parentElement.appendChild(div);
   }
 

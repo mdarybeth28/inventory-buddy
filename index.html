@@ -333,7 +333,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 28.4</div>
+<div class="card small no-print">Version 28.5</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1631,9 +1631,10 @@ async function fastScanPhoto(file,statusEl){
 }
 function scanSessionAdd(info){
   const code=String(info.code||'').trim();
+  if(!code&&!String(info.description||'').trim()&&!info.packSize&&!String(info.packText||'').trim())return;
   const ex=scanSession.entries.find(function(e){return code&&e.code===code;});
   if(ex){ ex.count++; if(info.codeWarn===false)ex.warn=false; if(!ex.name&&info.description)ex.name=info.description; if(!ex.packSize&&info.packSize)ex.packSize=info.packSize; }
-  else scanSession.entries.push({code:code,name:info.description||'',packSize:info.packSize||0,packText:info.packText||'',count:1,warn:!!info.codeWarn});
+  else scanSession.entries.push({code:code,name:info.description||'',packSize:info.packSize||0,packText:info.packText||'',count:1,warn:!!info.codeWarn||code===''||code.length!==6});
 }
 function scanEntriesHTML(){
   const s=scanSession; if(!s||!s.entries.length)return '<p class="small">Nothing scanned yet. Point the camera at each case label — every scan lands here.</p>';

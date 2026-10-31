@@ -2017,36 +2017,49 @@ function printPullSheet(){ document.body.classList.add('print-sheet'); try{ wind
     }
   };
 
-  // FIRST LOAD — a pile of photos at once. Feeds the Bulk Scan list: every
-  // photo is read, readable labels line up for review, and photos with no
-  // readable label are COUNTED and reported — never silently dropped.
+  // FIRST LOAD — batch photo review. Nothing is written to inventory here;
+  // the user reviews the staged Bulk Scan rows and explicitly files them.
   window.startFirstLoadPhotos=async function(event){
-    var list=Array.prototype.slice.call((event.target&&event.target.files)||[]);
-    event.target.value='';
+    var input=event&&event.target;
+    var list=Array.prototype.slice.call((input&&input.files)||[]);
+    if(input) input.value='';
     if(!list.length) return;
     var flStatus=document.getElementById('firstLoadStatus');
-    try{
-    if(typeof scanSession!=='undefined'&&scanSession&&scanSession.mode==='eom'){ alert('Finish or cancel the End of Month count first, then bring your photos.'); return; }
-    if(!scanSession||scanSession.mode!=='bulk'){ startBulkScan(); }
-    if(flStatus) flStatus.textContent='Reading your photos... watch the Bulk Scan list above.';
     var status=document.getElementById('bulkStatus');
-    var read=0, missed=0, i, info;
-    for(i=0;i<list.length;i++){
-      if(status) status.textContent='Reading photo '+(i+1)+' of '+list.length+'...';
-      try{
-        info=await fastScanPhoto(list[i],status);
-        if(info&&(info.code||info.description)){ scanSessionAdd(info); noteSessionScan(info.code); read++; }
-        else missed++;
-      }catch(e){ missed++; }
-      renderScanSession();
+    var fileButton=Array.from(document.querySelectorAll('#bulkPanel button')).find(function(b){return /File All These Cases/.test(b.textContent);});
+    try{
+      if(typeof scanSession!=='undefined'&&scanSession&&scanSession.mode==='eom'){
+        alert('Finish or cancel the End of Month count first, then bring your photos.'); return;
+      }
+      if(!scanSession||scanSession.mode!=='bulk') startBulkScan();
+      if(window.__firstLoadReading){ alert('First Load is still reading the previous photo batch. Please wait for it to finish.'); return; }
+      window.__firstLoadReading=true;
+      if(fileButton){fileButton.disabled=true;fileButton.dataset.firstLoadOriginal=fileButton.textContent;fileButton.textContent='⏳ Reading photos…';}
+      if(flStatus) flStatus.textContent='Reading '+list.length+' photos. Your inventory will not change until you tap File All These Cases.';
+      var read=0, missed=0, i, info;
+      for(i=0;i<list.length;i++){
+        if(status) status.textContent='Reading photo '+(i+1)+' of '+list.length+'…';
+        try{
+          info=await fastScanPhoto(list[i],status);
+          if(info&&(info.code||info.description||info.packSize||info.packText)){
+            scanSessionAdd(info); noteSessionScan(info.code); read++;
+          }else missed++;
+        }catch(e){ missed++; }
+        renderScanSession();
+      }
+      if(status) status.textContent='Photo batch complete: '+read+' readable label(s) from '+list.length+' photo(s).'
+        +(missed?' '+missed+' photo(s) need another photo or manual entry.':'')
+        +' Review/edit the rows, choose the location, then tap File All These Cases to save.';
+      var bp=document.getElementById('bulkPanel');
+      if(bp&&bp.scrollIntoView) bp.scrollIntoView({block:'start'});
+      if(flStatus) flStatus.textContent='Review the staged list above. Nothing has been saved yet.';
+    }catch(err){
+      if(flStatus) flStatus.textContent='';
+      alert('First Load hit a snag: '+((err&&err.message)?err.message:err));
+    }finally{
+      window.__firstLoadReading=false;
+      if(fileButton){fileButton.disabled=false;fileButton.textContent=fileButton.dataset.firstLoadOriginal||'💾 File All These Cases';delete fileButton.dataset.firstLoadOriginal;}
     }
-    if(status) status.textContent='Photo pile done: read '+read+' of '+list.length+' photos.'
-      +(missed?(' '+missed+' photo'+(missed===1?'':'s')+' did not show a label I could read, so those cases are NOT in the list — retake those closer, or add them by hand.'):'')
-      +' Check the list, fix any names, set the location above, then tap File All These Cases.';
-    var bp=document.getElementById('bulkPanel');
-    if(bp&&bp.scrollIntoView) bp.scrollIntoView({block:'start'});
-    if(flStatus) flStatus.textContent='';
-    }catch(err){ if(flStatus) flStatus.textContent=''; alert('First Load hit a snag: '+((err&&err.message)?err.message:err)); }
   };
 
   // Add the First Load button + multi-photo picker under Bulk Scan.

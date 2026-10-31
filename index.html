@@ -1650,9 +1650,16 @@ async function ocrItemCodeArea(file,statusEl){
     img.onerror=function(){resolve('');}; img.src=URL.createObjectURL(file);
   });
 }
+async function readBarcodeFromLabelPhoto(file){
+ let code='';
+ try{if('BarcodeDetector' in window){const bmp=await createImageBitmap(file);const det=new BarcodeDetector({formats:['upc_a','upc_e','ean_13','ean_8','code_128','code_39','itf']});const hits=await det.detect(bmp);if(hits&&hits.length)code=String(hits[0].rawValue||'').trim();}}catch(e){}
+ if(!code){try{const dec=new Html5Qrcode('barcodeFileReader');const r=await dec.scanFile(file,false);if(r)code=String(r).trim();try{dec.clear();}catch(e){}}catch(e){}}
+ return code;
+}
 async function fastScanPhoto(file,statusEl){
   const r=await ocrFile(file,1,1,statusEl);
   let info=extractBoxLabelInfo(r.text);
+  try{statusEl.textContent='Reading barcode…';info.barcode=await readBarcodeFromLabelPhoto(file);}catch(e){info.barcode='';}
   try{
     statusEl.textContent='Focusing on the yellow item-code box…';
     const focused=await ocrItemCodeArea(file,statusEl);
@@ -1673,13 +1680,14 @@ function scanSessionAdd(info){
   if(!code&&!String(info.description||'').trim()&&!info.packSize&&!String(info.packText||'').trim())return;
   const ex=scanSession.entries.find(function(e){return code&&e.code===code;});
   if(ex){ ex.count++; if(info.codeWarn===false)ex.warn=false; if(!ex.name&&info.description)ex.name=info.description; if(!ex.packSize&&info.packSize)ex.packSize=info.packSize; }
-  else scanSession.entries.push({code:code,name:info.description||'',packSize:info.packSize||0,packText:info.packText||'',count:1,warn:!!info.codeWarn||code===''||code.length!==6});
+  else scanSession.entries.push({code:code,barcode:String(info.barcode||''),name:info.description||'',packSize:info.packSize||0,packText:info.packText||'',count:1,warn:!!info.codeWarn||code===''||code.length!==6});
 }
 function scanEntriesHTML(){
   const s=scanSession; if(!s||!s.entries.length)return '<p class="small">Nothing scanned yet. Point the camera at each case label — every scan lands here.</p>';
   return s.entries.map(function(e,i){
     return '<div class="scanrow"><input style="flex:0 0 88px" value="'+esc(e.code)+'" onchange="scanEntryEdit('+i+',\'code\',this.value)" aria-label="Item code">'
       +'<input style="flex:1;min-width:110px" value="'+esc(e.name)+'" placeholder="Item name" onchange="scanEntryEdit('+i+',\'name\',this.value)" aria-label="Item name">'
+      +'<input style="flex:0 0 120px" value="'+esc(e.barcode||'')+'" placeholder="Barcode" onchange="scanEntryEdit('+i+',\'barcode\',this.value)" aria-label="Barcode">'
       +'<span class="small">'+(e.packText?esc(e.packText):'')+scanInListTag(e.code)+(e.warn?'<b style="color:#b00020"> \u26a0 check code</b>':'')+'</span>'
       +'<button type="button" class="secondary" style="font-size:19px;min-width:42px" onclick="scanEntryCount('+i+',-1)">−</button>'
       +'<strong style="min-width:24px;text-align:center">'+e.count+'</strong>'
@@ -1755,12 +1763,13 @@ function finishBulkScan(){
   for(const e of s.entries){
     if(!e.count)continue;
     let match=null;
-    if(e.code)match=items.find(function(x){return x.barcode&&String(x.barcode).trim()===e.code;});
+    if(e.barcode)match=items.find(function(x){return x.barcode&&String(x.barcode).trim()===e.barcode;});
+    if(!match&&e.code)match=items.find(function(x){return x.itemCode&&String(x.itemCode).trim()===e.code;});
     if(!match&&e.name){ const nl=e.name.toLowerCase(); match=items.find(function(x){return x.name&&x.name.trim().toLowerCase()===nl;}); }
     if(match){ match.qty=Number(match.qty||0)+e.count; if(!match.packSize&&e.packSize)match.packSize=e.packSize; if(!match.location&&loc)match.location=loc; matched++; }
     else{
       if(!e.name){ alert('One scanned case has no name ('+(e.code||'no code read')+'). Type its name in the list, then file again.'); return; }
-      items.push({id:Date.now()+added,name:e.name,cat:cat,location:loc,unit:'cases',packSize:Number(e.packSize||0),qty:e.count,min:0,orderQty:0,barcode:e.code,supplierId:''}); added++;
+      items.push({id:Date.now()+added,name:e.name,cat:cat,location:loc,unit:'cases',packSize:Number(e.packSize||0),qty:e.count,min:0,orderQty:0,barcode:e.barcode||'',itemCode:e.code,supplierId:''}); added++;
     }
   }
   persist();

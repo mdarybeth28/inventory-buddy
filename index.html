@@ -1651,15 +1651,35 @@ async function ocrItemCodeArea(file,statusEl){
   });
 }
 async function readBarcodeFromLabelPhoto(file){
- let code='';
- try{if('BarcodeDetector' in window){const bmp=await createImageBitmap(file);const det=new BarcodeDetector({formats:['upc_a','upc_e','ean_13','ean_8','code_128','code_39','itf']});const hits=await det.detect(bmp);if(hits&&hits.length)code=String(hits[0].rawValue||'').trim();}}catch(e){}
- if(!code){try{const dec=new Html5Qrcode('barcodeFileReader');const r=await dec.scanFile(file,false);if(r)code=String(r).trim();try{dec.clear();}catch(e){}}catch(e){}}
- return code;
+ // Prefer the native detector and try the full image plus likely label/barcode crops.
+ // Avoid html5-qrcode scanFile here: it can add a long second decode delay per photo.
+ if(!('BarcodeDetector' in window)) return '';
+ let bmp=null;
+ try{bmp=await createImageBitmap(file);}catch(e){return '';}
+ try{
+  const det=new BarcodeDetector({formats:['upc_a','upc_e','ean_13','ean_8','code_128','code_39','itf']});
+  const tryDetect=async(src)=>{try{const hits=await det.detect(src);if(hits&&hits.length){hits.sort((a,b)=>(b.boundingBox?.width||0)-(a.boundingBox?.width||0));return String(hits[0].rawValue||'').trim();}}catch(e){}return '';};
+  let code=await tryDetect(bmp); if(code)return code;
+  // Barcode is usually in the lower portion of the supplier label. Test crops at 2x.
+  const w=bmp.width||1,h=bmp.height||1;
+  const regions=[
+   [0,Math.floor(h*.28),w,Math.floor(h*.58)],
+   [Math.floor(w*.08),Math.floor(h*.25),Math.floor(w*.84),Math.floor(h*.62)],
+   [0,Math.floor(h*.45),w,Math.floor(h*.45)]
+  ];
+  for(const r of regions){
+   const c=document.createElement('canvas');c.width=Math.max(1,r[2]*2);c.height=Math.max(1,r[3]*2);
+   const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(bmp,r[0],r[1],r[2],r[3],0,0,c.width,c.height);
+   code=await tryDetect(c);if(code)return code;
+  }
+ }finally{try{bmp.close();}catch(e){}}
+ return '';
 }
 async function fastScanPhoto(file,statusEl){
   const r=await ocrFile(file,1,1,statusEl);
   let info=extractBoxLabelInfo(r.text);
-  try{statusEl.textContent='Reading barcode…';info.barcode=await readBarcodeFromLabelPhoto(file);}catch(e){info.barcode='';}
+  // Run the barcode pass alongside focused item-code OCR to reduce total waiting.
+  const barcodePromise=readBarcodeFromLabelPhoto(file).catch(()=> '');
   try{
     statusEl.textContent='Focusing on the yellow item-code box…';
     const focused=await ocrItemCodeArea(file,statusEl);
@@ -1667,12 +1687,13 @@ async function fastScanPhoto(file,statusEl){
     if(fi.code && (!info.code || info.code.length<5 || info.codeWarn)) info=mergeLabelInfo(info,fi);
     else if(fi.code && info.code!==fi.code && fi.code.length===6 && (!info.code||info.code.length!==6)) info=mergeLabelInfo(info,fi);
   }catch(e){console.warn('Focused item-code OCR skipped',e);}
-  if(!info.code||!info.packSize){
+  if(!info.code||!info.description){
     statusEl.textContent='That read was thin — trying the photo turned around...';
     const rf=await rotateImage180(file);
     const r2=await ocrFile(rf,1,1,statusEl);
     info=mergeLabelInfo(info,extractBoxLabelInfo(r2.text));
   }
+  info.barcode=await barcodePromise;
   return info;
 }
 function scanSessionAdd(info){

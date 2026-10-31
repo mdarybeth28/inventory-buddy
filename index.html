@@ -1618,82 +1618,15 @@ function scanInListTag(code){
 
 // ── Fast-scan session engine (shared by Bulk Scan and End of Month) ──
 let scanSession=null; // {mode:'bulk'|'eom', location:'', entries:[{code,name,packSize,packText,count}], report:null}
-async function ocrItemCodeArea(file,statusEl){
-  // Supplier case labels place ITEM CODE in a yellow box on the left.
-  // Enlarge the left side and run a focused OCR pass so the small digits
-  // are not lost in the full-photo text pass.
-  return new Promise(function(resolve){
-    var img=new Image();
-    img.onload=async function(){
-      try{
-        var iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
-        var sw=Math.round(iw*0.68), sh=ih;
-        var c=document.createElement('canvas'); c.width=sw*3; c.height=sh*2;
-        var ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
-        ctx.drawImage(img,0,0,sw,sh,0,0,c.width,c.height);
-        var d=ctx.getImageData(0,0,c.width,c.height), px=d.data;
-        for(var i=0;i<px.length;i+=4){
-          var rr=px[i], gg=px[i+1], bb=px[i+2];
-          var yellow=(rr>125&&gg>105&&bb<155&&rr>bb*1.25&&gg>bb*1.15);
-          var gray=0.299*rr+0.587*gg+0.114*bb;
-          var v=yellow?(gray>145?255:0):(gray>190?255:(gray<105?0:Math.round((gray-105)*255/85)));
-          px[i]=px[i+1]=px[i+2]=v;
-        }
-        ctx.putImageData(d,0,0);
-        c.toBlob(async function(blob){
-          if(!blob)return resolve('');
-          try{var r=await Tesseract.recognize(blob,'eng',{config:{tessedit_pageseg_mode:'6'}});resolve(r.data.text||'');}
-          catch(e){resolve('');}
-        },'image/png');
-      }catch(e){resolve('');}
-    };
-    img.onerror=function(){resolve('');}; img.src=URL.createObjectURL(file);
-  });
-}
-async function readBarcodeFromLabelPhoto(file){
- // Prefer the native detector and try the full image plus likely label/barcode crops.
- // Avoid html5-qrcode scanFile here: it can add a long second decode delay per photo.
- if(!('BarcodeDetector' in window)) return '';
- let bmp=null;
- try{bmp=await createImageBitmap(file);}catch(e){return '';}
- try{
-  const det=new BarcodeDetector({formats:['upc_a','upc_e','ean_13','ean_8','code_128','code_39','itf']});
-  const tryDetect=async(src)=>{try{const hits=await det.detect(src);if(hits&&hits.length){hits.sort((a,b)=>(b.boundingBox?.width||0)-(a.boundingBox?.width||0));return String(hits[0].rawValue||'').trim();}}catch(e){}return '';};
-  let code=await tryDetect(bmp); if(code)return code;
-  // Barcode is usually in the lower portion of the supplier label. Test crops at 2x.
-  const w=bmp.width||1,h=bmp.height||1;
-  const regions=[
-   [0,Math.floor(h*.28),w,Math.floor(h*.58)],
-   [Math.floor(w*.08),Math.floor(h*.25),Math.floor(w*.84),Math.floor(h*.62)],
-   [0,Math.floor(h*.45),w,Math.floor(h*.45)]
-  ];
-  for(const r of regions){
-   const c=document.createElement('canvas');c.width=Math.max(1,r[2]*2);c.height=Math.max(1,r[3]*2);
-   const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(bmp,r[0],r[1],r[2],r[3],0,0,c.width,c.height);
-   code=await tryDetect(c);if(code)return code;
-  }
- }finally{try{bmp.close();}catch(e){}}
- return '';
-}
 async function fastScanPhoto(file,statusEl){
   const r=await ocrFile(file,1,1,statusEl);
   let info=extractBoxLabelInfo(r.text);
-  // Run the barcode pass alongside focused item-code OCR to reduce total waiting.
-  const barcodePromise=readBarcodeFromLabelPhoto(file).catch(()=> '');
-  try{
-    statusEl.textContent='Focusing on the yellow item-code box…';
-    const focused=await ocrItemCodeArea(file,statusEl);
-    const fi=extractBoxLabelInfo(focused);
-    if(fi.code && (!info.code || info.code.length<5 || info.codeWarn)) info=mergeLabelInfo(info,fi);
-    else if(fi.code && info.code!==fi.code && fi.code.length===6 && (!info.code||info.code.length!==6)) info=mergeLabelInfo(info,fi);
-  }catch(e){console.warn('Focused item-code OCR skipped',e);}
-  if(!info.code||!info.description){
+  if(!info.code&&!info.packSize){
     statusEl.textContent='That read was thin — trying the photo turned around...';
     const rf=await rotateImage180(file);
     const r2=await ocrFile(rf,1,1,statusEl);
     info=mergeLabelInfo(info,extractBoxLabelInfo(r2.text));
   }
-  info.barcode=await barcodePromise;
   return info;
 }
 function scanSessionAdd(info){
@@ -1701,14 +1634,13 @@ function scanSessionAdd(info){
   if(!code&&!String(info.description||'').trim()&&!info.packSize&&!String(info.packText||'').trim())return;
   const ex=scanSession.entries.find(function(e){return code&&e.code===code;});
   if(ex){ ex.count++; if(info.codeWarn===false)ex.warn=false; if(!ex.name&&info.description)ex.name=info.description; if(!ex.packSize&&info.packSize)ex.packSize=info.packSize; }
-  else scanSession.entries.push({code:code,barcode:String(info.barcode||''),name:info.description||'',packSize:info.packSize||0,packText:info.packText||'',count:1,warn:!!info.codeWarn||code===''||code.length!==6});
+  else scanSession.entries.push({code:code,name:info.description||'',packSize:info.packSize||0,packText:info.packText||'',count:1,warn:!!info.codeWarn||code===''||code.length!==6});
 }
 function scanEntriesHTML(){
   const s=scanSession; if(!s||!s.entries.length)return '<p class="small">Nothing scanned yet. Point the camera at each case label — every scan lands here.</p>';
   return s.entries.map(function(e,i){
     return '<div class="scanrow"><input style="flex:0 0 88px" value="'+esc(e.code)+'" onchange="scanEntryEdit('+i+',\'code\',this.value)" aria-label="Item code">'
       +'<input style="flex:1;min-width:110px" value="'+esc(e.name)+'" placeholder="Item name" onchange="scanEntryEdit('+i+',\'name\',this.value)" aria-label="Item name">'
-      +'<input style="flex:0 0 120px" value="'+esc(e.barcode||'')+'" placeholder="Barcode" onchange="scanEntryEdit('+i+',\'barcode\',this.value)" aria-label="Barcode">'
       +'<span class="small">'+(e.packText?esc(e.packText):'')+scanInListTag(e.code)+(e.warn?'<b style="color:#b00020"> \u26a0 check code</b>':'')+'</span>'
       +'<button type="button" class="secondary" style="font-size:19px;min-width:42px" onclick="scanEntryCount('+i+',-1)">−</button>'
       +'<strong style="min-width:24px;text-align:center">'+e.count+'</strong>'
@@ -1784,13 +1716,12 @@ function finishBulkScan(){
   for(const e of s.entries){
     if(!e.count)continue;
     let match=null;
-    if(e.barcode)match=items.find(function(x){return x.barcode&&String(x.barcode).trim()===e.barcode;});
-    if(!match&&e.code)match=items.find(function(x){return x.itemCode&&String(x.itemCode).trim()===e.code;});
+    if(e.code)match=items.find(function(x){return x.barcode&&String(x.barcode).trim()===e.code;});
     if(!match&&e.name){ const nl=e.name.toLowerCase(); match=items.find(function(x){return x.name&&x.name.trim().toLowerCase()===nl;}); }
     if(match){ match.qty=Number(match.qty||0)+e.count; if(!match.packSize&&e.packSize)match.packSize=e.packSize; if(!match.location&&loc)match.location=loc; matched++; }
     else{
       if(!e.name){ alert('One scanned case has no name ('+(e.code||'no code read')+'). Type its name in the list, then file again.'); return; }
-      items.push({id:Date.now()+added,name:e.name,cat:cat,location:loc,unit:'cases',packSize:Number(e.packSize||0),qty:e.count,min:0,orderQty:0,barcode:e.barcode||'',itemCode:e.code,supplierId:''}); added++;
+      items.push({id:Date.now()+added,name:e.name,cat:cat,location:loc,unit:'cases',packSize:Number(e.packSize||0),qty:e.count,min:0,orderQty:0,barcode:e.code,supplierId:''}); added++;
     }
   }
   persist();
@@ -2086,49 +2017,36 @@ function printPullSheet(){ document.body.classList.add('print-sheet'); try{ wind
     }
   };
 
-  // FIRST LOAD — batch photo review. Nothing is written to inventory here;
-  // the user reviews the staged Bulk Scan rows and explicitly files them.
+  // FIRST LOAD — a pile of photos at once. Feeds the Bulk Scan list: every
+  // photo is read, readable labels line up for review, and photos with no
+  // readable label are COUNTED and reported — never silently dropped.
   window.startFirstLoadPhotos=async function(event){
-    var input=event&&event.target;
-    var list=Array.prototype.slice.call((input&&input.files)||[]);
-    if(input) input.value='';
+    var list=Array.prototype.slice.call((event.target&&event.target.files)||[]);
+    event.target.value='';
     if(!list.length) return;
     var flStatus=document.getElementById('firstLoadStatus');
-    var status=document.getElementById('bulkStatus');
-    var fileButton=Array.from(document.querySelectorAll('#bulkPanel button')).find(function(b){return /File All These Cases/.test(b.textContent);});
     try{
-      if(typeof scanSession!=='undefined'&&scanSession&&scanSession.mode==='eom'){
-        alert('Finish or cancel the End of Month count first, then bring your photos.'); return;
-      }
-      if(!scanSession||scanSession.mode!=='bulk') startBulkScan();
-      if(window.__firstLoadReading){ alert('First Load is still reading the previous photo batch. Please wait for it to finish.'); return; }
-      window.__firstLoadReading=true;
-      if(fileButton){fileButton.disabled=true;fileButton.dataset.firstLoadOriginal=fileButton.textContent;fileButton.textContent='⏳ Reading photos…';}
-      if(flStatus) flStatus.textContent='Reading '+list.length+' photos. Your inventory will not change until you tap File All These Cases.';
-      var read=0, missed=0, i, info;
-      for(i=0;i<list.length;i++){
-        if(status) status.textContent='Reading photo '+(i+1)+' of '+list.length+'…';
-        try{
-          info=await fastScanPhoto(list[i],status);
-          if(info&&(info.code||info.description||info.packSize||info.packText)){
-            scanSessionAdd(info); noteSessionScan(info.code); read++;
-          }else missed++;
-        }catch(e){ missed++; }
-        renderScanSession();
-      }
-      if(status) status.textContent='Photo batch complete: '+read+' readable label(s) from '+list.length+' photo(s).'
-        +(missed?' '+missed+' photo(s) need another photo or manual entry.':'')
-        +' Review/edit the rows, choose the location, then tap File All These Cases to save.';
-      var bp=document.getElementById('bulkPanel');
-      if(bp&&bp.scrollIntoView) bp.scrollIntoView({block:'start'});
-      if(flStatus) flStatus.textContent='Review the staged list above. Nothing has been saved yet.';
-    }catch(err){
-      if(flStatus) flStatus.textContent='';
-      alert('First Load hit a snag: '+((err&&err.message)?err.message:err));
-    }finally{
-      window.__firstLoadReading=false;
-      if(fileButton){fileButton.disabled=false;fileButton.textContent=fileButton.dataset.firstLoadOriginal||'💾 File All These Cases';delete fileButton.dataset.firstLoadOriginal;}
+    if(typeof scanSession!=='undefined'&&scanSession&&scanSession.mode==='eom'){ alert('Finish or cancel the End of Month count first, then bring your photos.'); return; }
+    if(!scanSession||scanSession.mode!=='bulk'){ startBulkScan(); }
+    if(flStatus) flStatus.textContent='Reading your photos... watch the Bulk Scan list above.';
+    var status=document.getElementById('bulkStatus');
+    var read=0, missed=0, i, info;
+    for(i=0;i<list.length;i++){
+      if(status) status.textContent='Reading photo '+(i+1)+' of '+list.length+'...';
+      try{
+        info=await fastScanPhoto(list[i],status);
+        if(info&&(info.code||info.description)){ scanSessionAdd(info); noteSessionScan(info.code); read++; }
+        else missed++;
+      }catch(e){ missed++; }
+      renderScanSession();
     }
+    if(status) status.textContent='Photo pile done: read '+read+' of '+list.length+' photos.'
+      +(missed?(' '+missed+' photo'+(missed===1?'':'s')+' did not show a label I could read, so those cases are NOT in the list — retake those closer, or add them by hand.'):'')
+      +' Check the list, fix any names, set the location above, then tap File All These Cases.';
+    var bp=document.getElementById('bulkPanel');
+    if(bp&&bp.scrollIntoView) bp.scrollIntoView({block:'start'});
+    if(flStatus) flStatus.textContent='';
+    }catch(err){ if(flStatus) flStatus.textContent=''; alert('First Load hit a snag: '+((err&&err.message)?err.message:err)); }
   };
 
   // Add the First Load button + multi-photo picker under Bulk Scan.

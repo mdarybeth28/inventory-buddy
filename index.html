@@ -1618,10 +1618,49 @@ function scanInListTag(code){
 
 // ── Fast-scan session engine (shared by Bulk Scan and End of Month) ──
 let scanSession=null; // {mode:'bulk'|'eom', location:'', entries:[{code,name,packSize,packText,count}], report:null}
+async function ocrItemCodeArea(file,statusEl){
+  // Supplier case labels place ITEM CODE in a yellow box on the left.
+  // Enlarge the left side and run a focused OCR pass so the small digits
+  // are not lost in the full-photo text pass.
+  return new Promise(function(resolve){
+    var img=new Image();
+    img.onload=async function(){
+      try{
+        var iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
+        var sw=Math.round(iw*0.68), sh=ih;
+        var c=document.createElement('canvas'); c.width=sw*3; c.height=sh*2;
+        var ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+        ctx.drawImage(img,0,0,sw,sh,0,0,c.width,c.height);
+        var d=ctx.getImageData(0,0,c.width,c.height), px=d.data;
+        for(var i=0;i<px.length;i+=4){
+          var rr=px[i], gg=px[i+1], bb=px[i+2];
+          var yellow=(rr>125&&gg>105&&bb<155&&rr>bb*1.25&&gg>bb*1.15);
+          var gray=0.299*rr+0.587*gg+0.114*bb;
+          var v=yellow?(gray>145?255:0):(gray>190?255:(gray<105?0:Math.round((gray-105)*255/85)));
+          px[i]=px[i+1]=px[i+2]=v;
+        }
+        ctx.putImageData(d,0,0);
+        c.toBlob(async function(blob){
+          if(!blob)return resolve('');
+          try{var r=await Tesseract.recognize(blob,'eng',{config:{tessedit_pageseg_mode:'6'}});resolve(r.data.text||'');}
+          catch(e){resolve('');}
+        },'image/png');
+      }catch(e){resolve('');}
+    };
+    img.onerror=function(){resolve('');}; img.src=URL.createObjectURL(file);
+  });
+}
 async function fastScanPhoto(file,statusEl){
   const r=await ocrFile(file,1,1,statusEl);
   let info=extractBoxLabelInfo(r.text);
-  if(!info.code&&!info.packSize){
+  try{
+    statusEl.textContent='Focusing on the yellow item-code box…';
+    const focused=await ocrItemCodeArea(file,statusEl);
+    const fi=extractBoxLabelInfo(focused);
+    if(fi.code && (!info.code || info.code.length<5 || info.codeWarn)) info=mergeLabelInfo(info,fi);
+    else if(fi.code && info.code!==fi.code && fi.code.length===6 && (!info.code||info.code.length!==6)) info=mergeLabelInfo(info,fi);
+  }catch(e){console.warn('Focused item-code OCR skipped',e);}
+  if(!info.code||!info.packSize){
     statusEl.textContent='That read was thin — trying the photo turned around...';
     const rf=await rotateImage180(file);
     const r2=await ocrFile(rf,1,1,statusEl);

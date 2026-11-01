@@ -8,7 +8,7 @@
 *{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#eafbf0;color:#222}
 header{background:#007000;color:white;padding:24px 18px}h1{margin:0 0 6px;font-size:28px}.sub{opacity:.85}
 main{max-width:760px;margin:auto;padding:16px}.card{background:white;border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 2px 10px #0000000d}
-button{border:0;border-radius:11px;padding:11px 14px;font-size:15px;cursor:pointer;margin:3px}.primary{background:#009e9b;color:white}.secondary{background:#c2f4d6}.danger{background:#fee2e2;color:#991b1b}
+button{border:0;border-radius:11px;padding:11px 14px;font-size:15px;cursor:pointer;margin:3px;color:#007000}.primary{background:#009e9b;color:white}.secondary{background:#c2f4d6}.danger{background:#fee2e2;color:#991b1b}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}label{font-size:14px;font-weight:600;display:block;margin-top:8px}
 input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:16px;margin:6px 0 10px}
 .item{border-top:1px solid #eee;padding:14px 0}.row{display:flex;justify-content:space-between;gap:10px;align-items:center}.small{font-size:13px;color:#666}.low{color:#b91c1c;font-weight:700}.good{color:#007000;font-weight:700}
@@ -56,12 +56,11 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
  body.print-sheet header,body.print-sheet .nav,body.print-sheet main>*:not(#eom){display:none!important}
  body.print-sheet #eom .card{box-shadow:none}
 }
-.doors{display:grid;grid-template-columns:1fr 1fr;gap:10px}.doors button{padding:16px 10px;font-size:17px;font-weight:700;line-height:1.3}.doors button small{display:block;font-size:11.5px;font-weight:400;opacity:.85;margin-top:3px;line-height:1.4}</style></head>
+.doors{display:grid;grid-template-columns:1fr 1fr;gap:10px}.doors button{padding:16px 10px;font-size:17px;font-weight:700;line-height:1.3;color:#009e9b}.doors button small{display:block;font-size:11.5px;font-weight:400;opacity:.85;margin-top:3px;line-height:1.4;color:#007000}</style></head>
 <body><div id="appReady">✓ Ready</div>
 <header><h1>📦 Inventory Buddy</h1><div class="sub">School inventory, made simpler.</div></header>
 <main>
 <section class="card no-print" id="cloudSyncCard">
-  <h2>Welcome to Inventory Buddy</h2>
   <div id="cloudStatus" class="setup-note">Sign in to access your inventory. Need an account? Contact your Inventory Buddy administrator.</div>
   <div id="authForm" style="margin-top:10px">
     <label>Email</label><input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com">
@@ -70,18 +69,11 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
   </div>
   <div id="signedInBox" class="hidden" style="margin-top:10px">
     <div class="small">Signed in as <b id="cloudEmail"></b></div>
+    <button type="button" class="secondary" id="accountFoldBtn" style="width:100%" onclick="toggleAccountFold()">⚙️ My Account ▸</button>
+    <div id="accountFold" class="hidden" style="margin-top:8px">
     <button type="button" class="secondary" onclick="cloudSignOut()">Sign Out</button>
     <button type="button" class="secondary" onclick="cloudSyncNow()">🔄 Sync Now</button>
-    <button type="button" class="secondary" onclick="togglePasswordForm()">🔐 Change Password</button> <button type="button" class="secondary" onclick="toggleEmailForm()">📧 Change Email</button><div id="emailChangeForm" class="card hidden" style="margin-top:12px;padding:12px;box-shadow:none;border:1px solid #ddd"><h3 style="margin:0 0 8px">📧 Change Email</h3><label for="newAccountEmail">New email address</label><input id="newAccountEmail" type="email" autocomplete="email" placeholder="you@example.com"><button type="button" class="primary" onclick="changeAccountEmail()">Send Confirmation Link</button><div class="small" style="margin-top:6px">The change finishes when you tap the link sent to the new address.</div></div>
-    <div id="passwordChangeForm" class="card hidden" style="margin-top:12px;padding:12px;box-shadow:none;border:1px solid #ddd">
-      <h3 style="margin:0 0 8px">🔐 Change Password</h3>
-      <label for="newAccountPassword">New password</label>
-      <input id="newAccountPassword" type="password" autocomplete="new-password" placeholder="At least 8 characters">
-      <label for="confirmAccountPassword">Confirm new password</label>
-      <input id="confirmAccountPassword" type="password" autocomplete="new-password" placeholder="Type it again">
-      <button type="button" class="primary" onclick="changeAccountPassword()">Save New Password</button>
-    </div>
-  </div>
+    <button type="button" class="secondary" onclick="togglePasswordForm()">🔐 Change Password</button> <button type="button" class="secondary" onclick="toggleEmailForm()">📧 Change Email</button>
 <div style="margin-top:14px;border-top:1px solid #c2f4d6;padding-top:10px">
 <button type="button" class="secondary" onclick="toggleAboutPrivacy()">ℹ️ About &amp; Privacy — for schools &amp; administrators</button>
 <div id="aboutPrivacy" class="hidden" style="margin-top:10px;text-align:left">
@@ -104,6 +96,16 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <p class="small"><b>Questions:</b> Mary Davis — marybeth.davis28@gmail.com · (731) 358-5337</p>
 </div>
 </div>
+    </div><div id="emailChangeForm" class="card hidden" style="margin-top:12px;padding:12px;box-shadow:none;border:1px solid #ddd"><h3 style="margin:0 0 8px">📧 Change Email</h3><label for="newAccountEmail">New email address</label><input id="newAccountEmail" type="email" autocomplete="email" placeholder="you@example.com"><button type="button" class="primary" onclick="changeAccountEmail()">Send Confirmation Link</button><div class="small" style="margin-top:6px">The change finishes when you tap the link sent to the new address.</div></div>
+    <div id="passwordChangeForm" class="card hidden" style="margin-top:12px;padding:12px;box-shadow:none;border:1px solid #ddd">
+      <h3 style="margin:0 0 8px">🔐 Change Password</h3>
+      <label for="newAccountPassword">New password</label>
+      <input id="newAccountPassword" type="password" autocomplete="new-password" placeholder="At least 8 characters">
+      <label for="confirmAccountPassword">Confirm new password</label>
+      <input id="confirmAccountPassword" type="password" autocomplete="new-password" placeholder="Type it again">
+      <button type="button" class="primary" onclick="changeAccountPassword()">Save New Password</button>
+    </div>
+  </div>
 </section>
 
 <section class="welcome no-print">
@@ -338,7 +340,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 28.6</div>
+<div class="card small no-print">Version 28.7</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1619,7 +1621,7 @@ async function loadCloudData(){
  }catch(err){console.error('Cloud load error',err);cloudReady=false;cloudStatus('Could not connect to cloud: '+(err?.message||'unknown error'));}
 }
 function updateAuthUI(user){const form=document.getElementById('authForm'),box=document.getElementById('signedInBox'),email=document.getElementById('cloudEmail'),passwordForm=document.getElementById('passwordChangeForm');if(user){form?.classList.add('hidden');box?.classList.remove('hidden');if(email)email.textContent=user.email||'your account';}else{document.body.classList.remove('authenticated');form?.classList.remove('hidden');box?.classList.add('hidden');passwordForm?.classList.add('hidden');}}
-function toggleAboutPrivacy(){const p=document.getElementById('aboutPrivacy');if(p)p.classList.toggle('hidden');} function togglePasswordForm(){const form=document.getElementById('passwordChangeForm');if(form)form.classList.toggle('hidden');} function toggleEmailForm(){const form=document.getElementById('emailChangeForm');if(form)form.classList.toggle('hidden');} async function changeAccountEmail(){const em=(document.getElementById('newAccountEmail')?.value||'').trim(); if(!em||!em.includes('@'))return alert('Type the new email address first.'); const {error}=await inventoryBuddySupabase.auth.updateUser({email:em}); if(error)return alert('Could not change email: '+error.message); alert('Almost done! A confirmation link was sent to '+em+'. Tap the link in that inbox to finish the change. If a link also arrives at your current email, tap that one too. Until then, keep signing in with your current email.'); document.getElementById('newAccountEmail').value='';}
+function toggleAboutPrivacy(){const p=document.getElementById('aboutPrivacy');if(p)p.classList.toggle('hidden');} function toggleAccountFold(){const f=document.getElementById('accountFold');if(f)f.classList.toggle('hidden');const b=document.getElementById('accountFoldBtn');if(b&&f)b.textContent=f.classList.contains('hidden')?'⚙️ My Account ▸':'⚙️ My Account ▾';} function togglePasswordForm(){const form=document.getElementById('passwordChangeForm');if(form)form.classList.toggle('hidden');} function toggleEmailForm(){const form=document.getElementById('emailChangeForm');if(form)form.classList.toggle('hidden');} async function changeAccountEmail(){const em=(document.getElementById('newAccountEmail')?.value||'').trim(); if(!em||!em.includes('@'))return alert('Type the new email address first.'); const {error}=await inventoryBuddySupabase.auth.updateUser({email:em}); if(error)return alert('Could not change email: '+error.message); alert('Almost done! A confirmation link was sent to '+em+'. Tap the link in that inbox to finish the change. If a link also arrives at your current email, tap that one too. Until then, keep signing in with your current email.'); document.getElementById('newAccountEmail').value='';}
 async function cloudSignUp(){const email=document.getElementById('authEmail')?.value.trim(),password=document.getElementById('authPassword')?.value;if(!email||!password)return alert('Enter your email and a password first.');if(password.length<6)return alert('Use a password with at least 6 characters.');const {data,error}=await inventoryBuddySupabase.auth.signUp({email,password});if(error)return alert(error.message);if(data.session){alert('Account created and signed in.');await loadCloudData();}else alert('Account created. Check your email for the confirmation link, then come back and sign in.');}
 async function cloudSignIn(){const email=document.getElementById('authEmail')?.value.trim(),password=document.getElementById('authPassword')?.value;if(!email||!password)return alert('Enter your email and password first.');const {error}=await inventoryBuddySupabase.auth.signInWithPassword({email,password});if(error)return alert(error.message);await loadCloudData();}
 async function changeAccountPassword(){
@@ -2180,7 +2182,7 @@ function printPullSheet(){ document.body.classList.add('print-sheet'); try{ wind
     if(p) p.classList.toggle('hidden');
   };
   function addReachMary(){
-    var host=document.getElementById('signedInBox'); if(!host) return;
+    var host=document.getElementById('accountFold'); if(!host) return;
     if(document.getElementById('reachMaryBtn')) return;
     var wrap=document.createElement('div');
     wrap.style.marginTop='10px';

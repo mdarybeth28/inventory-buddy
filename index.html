@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inventory Buddy — V28.11</title>
+<title>Inventory Buddy — V28.12</title>
 <style>
 *{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#eafbf0;color:#222}
 header{background:#007000;color:white;padding:24px 18px}h1{margin:0 0 6px;font-size:28px}.sub{opacity:.85}
@@ -307,7 +307,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <div id="receiveResults" style="margin-top:12px"></div>
 </section>
 
-<section id="boxlabel" class="card hidden"> <h2>📦 Scan Box Label</h2> <p class="small">Snap a photo of a product box label. The app reads the item code, name, and pack size — check the fields, fix anything, then save it to your inventory.</p> <div class="row" style="margin-top:6px"><button type="button" class="secondary" onclick="show('add')">➕ Add Item by hand instead</button></div> <div class="row" style="flex-wrap:wrap;margin-top:8px"> <button type="button" class="primary" onclick="startBoxLabelScanner()">🔫 Scan Barcode</button> <button type="button" class="primary" onclick="document.getElementById('boxLabelCameraInput').click()">📷 Take Photo</button> <button type="button" class="secondary" onclick="document.getElementById('boxLabelUploadInput').click()">⬆️ Upload Photo</button> </div> <input id="boxLabelCameraInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="readBoxLabel(event)"> <input id="boxLabelUploadInput" type="file" accept="image/*" class="hidden" onchange="readBoxLabel(event)"> <p class="small" style="margin-top:6px">📷 Camera won't open? Open the app in Safari or Chrome instead of inside Messenger/Facebook — or take the photo first, then tap Upload Photo.</p><div id="boxLabelStatus" class="small" style="margin-top:8px"></div> <label class="small" style="display:block;margin-top:8px"><input type="checkbox" id="fastLoad"> 🔁 <b>Fast load:</b> after each save, open the camera for the next label</label> <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px"> <button type="button" class="secondary" onclick="startBulkScan()">🚀 Bulk Scan — many cases, one after another</button> <p class="small" style="margin-top:6px">Scanning a whole delivery? Bulk Scan reads each label and lines the cases up — check the codes and counts as they land, then file them all at once.</p> <div id="bulkPanel" class="hidden"> <div id="bulkStatus" class="small" style="margin-top:8px"></div> <label>Location for these cases</label><select id="bulkLocation" onchange="boxLocationChanged(this)"></select><div class="row" style="margin-top:6px"><input id="bulkNewLoc" type="text" placeholder="New location — e.g. Walk-in Freezer" style="flex:1;min-width:140px"><button type="button" class="secondary" onclick="bulkAddLocation()">📍 Add Location</button></div><p class="small" style="margin-top:4px">New here? Add your places first — freezer, dry storage, shelves — then they are ready to pick for every load.</p> <label>Category for brand-new items</label><select id="bulkCategory"><option>Food</option><option>Paper</option><option>Cleaning</option><option>Beverage</option><option>Supplies</option><option>Other</option></select> <div id="bulkScanList" style="margin-top:8px"></div> <p class="small" id="bulkTally" style="margin-top:8px"></p> <div class="row" style="flex-wrap:wrap;margin-top:8px"><button type="button" class="primary" onclick="startSessionBarcode('bulkReader','bulkStatus')">🔫 Scan Barcodes — Case After Case</button> <button type="button" class="primary" onclick="document.getElementById('bulkCameraInput').click()">📷 Scan Next Case</button> <button type="button" class="secondary" onclick="document.getElementById('bulkUploadInput').click()">⬆️ Upload Photo</button></div> <input id="bulkCameraInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="readBulkLabel(event)"> <input id="bulkUploadInput" type="file" accept="image/*" class="hidden" onchange="readBulkLabel(event)"><div id="bulkReader" style="width:100%;max-width:500px;margin:10px auto"></div><div class="row" id="bulkReaderStop" style="display:none;justify-content:center;margin-top:6px"><button type="button" class="secondary" onclick="stopSessionBarcode()">⏹ Done Scanning</button></div> <div class="row" style="flex-wrap:wrap;margin-top:10px"><button type="button" class="primary" onclick="finishBulkScan()">💾 File All These Cases</button> <button type="button" class="danger" onclick="cancelScanSession()">Cancel Bulk Scan</button></div> </div> </div> <div id="boxLabelResult" style="margin-top:12px"></div> </section>  <section id="history" class="card hidden">
+<section id="boxlabel" class="card hidden"> <h2>📦 Scan Box Label</h2> <p class="small">Snap a photo of a product box label. The app reads the item code, name, and pack size — check the fields, fix anything, then save it to your inventory.</p> <div class="row" style="margin-top:6px"><button type="button" class="secondary" onclick="show('add')">➕ Add Item by hand instead</button></div> <div class="row" style="flex-wrap:wrap;margin-top:8px"> <button type="button" class="primary" onclick="startBoxLabelScanner()">🔫 Scan Barcode</button> <button type="button" class="primary" onclick="document.getElementById('boxLabelCameraInput').click()">📷 Take Photo</button> <button type="button" class="secondary" onclick="document.getElementById('boxLabelUploadInput').click()">⬆️ Upload Photo</button> </div> <input id="boxLabelCameraInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="readBoxLabel(event)"> <input id="boxLabelUploadInput" type="file" accept="image/*" class="hidden" onchange="readBoxLabel(event)"> <p class="small" style="margin-top:6px">📷 Camera won't open? Open the app in Safari or Chrome instead of inside Messenger/Facebook — or take the photo first, then tap Upload Photo.</p><div id="boxLabelStatus" class="small" style="margin-top:8px"></div> <label class="small" style="display:block;margin-top:8px"><input type="checkbox" id="fastLoad"> 🔁 <b>Fast load:</b> after each save, open the camera for the next label</label> <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px"> <button type="button" class="secondary" onclick="startBulkScan()">🚀 Bulk Scan — many cases, one after another</button> <p class="small" style="margin-top:6px">Scanning a whole delivery? Bulk Scan reads each label and lines the cases up — check the codes and counts as they land, then file them all at once.</p> <div id="bulkPanel" class="hidden"> <div id="bulkStatus" class="small" style="margin-top:8px"></div> <div id="bulkLocPicker"><label>Location for these cases</label><select id="bulkLocation" onchange="boxLocationChanged(this)"></select><div class="row" style="margin-top:6px"><input id="bulkNewLoc" type="text" placeholder="New location — e.g. Walk-in Freezer" style="flex:1;min-width:140px"><button type="button" class="secondary" onclick="bulkAddLocation()">📍 Add Location</button></div><p class="small" style="margin-top:4px">New here? Add your places first — freezer, dry storage, shelves — then they are ready to pick for every load.</p></div> <div id="bulkCatPicker"><label>Category for brand-new items</label><select id="bulkCategory"><option>Food</option><option>Paper</option><option>Cleaning</option><option>Beverage</option><option>Supplies</option><option>Other</option></select></div> <div id="bulkScanList" style="margin-top:8px"></div> <p class="small" id="bulkTally" style="margin-top:8px"></p> <div class="row" style="flex-wrap:wrap;margin-top:8px"><button type="button" class="primary" onclick="startSessionBarcode('bulkReader','bulkStatus')">🔫 Scan Barcodes — Case After Case</button> <button type="button" class="primary" onclick="document.getElementById('bulkCameraInput').click()">📷 Scan Next Case</button> <button type="button" class="secondary" onclick="document.getElementById('bulkUploadInput').click()">⬆️ Upload Photo</button></div> <input id="bulkCameraInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="readBulkLabel(event)"> <input id="bulkUploadInput" type="file" accept="image/*" class="hidden" onchange="readBulkLabel(event)"><div id="bulkReader" style="width:100%;max-width:500px;margin:10px auto"></div><div class="row" id="bulkReaderStop" style="display:none;justify-content:center;margin-top:6px"><button type="button" class="secondary" onclick="stopSessionBarcode()">⏹ Done Scanning</button></div> <div class="row" style="flex-wrap:wrap;margin-top:10px"><button type="button" class="primary" onclick="finishBulkScan()">💾 File All These Cases</button> <button type="button" class="danger" onclick="cancelScanSession()">Cancel Bulk Scan</button></div> </div> </div> <div id="boxLabelResult" style="margin-top:12px"></div> </section>  <section id="history" class="card hidden">
 <h2>📋 Order History</h2>
 <p class="small">See what you marked as ordered and when.</p>
 <div id="orderHistoryList"></div>
@@ -340,7 +340,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 28.11</div>
+<div class="card small no-print">Version 28.12</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1812,6 +1812,7 @@ function scanEntriesHTML(){
     return '<div class="scanrow"><input style="flex:0 0 88px" value="'+esc(e.code)+'" onchange="scanEntryEdit('+i+',\'code\',this.value)" aria-label="Item code">'
       +'<input style="flex:1;min-width:110px" value="'+esc(e.name)+'" placeholder="Item name" onchange="scanEntryEdit('+i+',\'name\',this.value)" aria-label="Item name">'
       +'<span class="small">'+(e.packText?esc(e.packText):'')+scanInListTag(e.code)+(e.warn?'<b style="color:#b00020"> \u26a0 check code</b>':'')+'</span>'
+      +(e.report?'<select style="flex:0 0 118px" onchange="scanEntryLoc('+i+',this)" aria-label="Location for this item">'+reportLocOptionsHTML(e.location)+'</select>':'')
       +'<button type="button" class="secondary" style="font-size:19px;min-width:42px" onclick="scanEntryCount('+i+',-1)">−</button>'
       +'<strong style="min-width:24px;text-align:center">'+e.count+'</strong>'
       +'<button type="button" class="primary" style="font-size:19px;min-width:42px" onclick="scanEntryCount('+i+',1)">+</button>'
@@ -1825,6 +1826,7 @@ function renderScanSession(){
   if(s.mode==='bulk'){
     document.getElementById('bulkScanList').innerHTML=scanEntriesHTML();
     document.getElementById('bulkTally').textContent=tally;
+    applyBulkPickers();
   }else{
     document.getElementById('eomScanList').innerHTML=scanEntriesHTML();
     document.getElementById('eomTally').textContent='Counted so far: '+tally;
@@ -1833,6 +1835,20 @@ function renderScanSession(){
 function scanEntryEdit(i,f,v){ if(!scanSession)return; scanSession.entries[i][f]=String(v||'').trim(); renderScanSession(); }
 function scanEntryCount(i,d){ if(!scanSession)return; scanSession.entries[i].count=Math.max(0,scanSession.entries[i].count+d); renderScanSession(); }
 function scanEntryRemove(i){ if(!scanSession)return; scanSession.entries.splice(i,1); renderScanSession(); }
+function bulkReportMode(){ const s=scanSession; return !!(s&&s.mode==='bulk'&&s.entries.some(function(e){return e.report;})); }
+function applyBulkPickers(){ const rm=bulkReportMode(); const lp=document.getElementById('bulkLocPicker'); if(lp)lp.style.display=rm?'none':''; const cp=document.getElementById('bulkCatPicker'); if(cp)cp.style.display=rm?'none':''; }
+function reportLocOptionsHTML(sel){
+  const cur=String(sel||''); let h=locationOptionsHTML(cur);
+  if(cur){ let known=false; try{ allLocationNames().forEach(function(n){ if(n.toLowerCase()===cur.toLowerCase())known=true; }); }catch(e){}
+    if(!known)h='<option value="'+esc(cur)+'" selected>'+esc(cur)+'</option>'+h; }
+  return h;
+}
+function scanEntryLoc(i,sel){
+  if(!scanSession||!scanSession.entries[i]||!sel)return;
+  if(sel.value==='__add_location__')handleLocationChoice(sel,scanSession.entries[i].location||'');
+  if(sel.value&&sel.value!=='__add_location__')scanSession.entries[i].location=sel.value;
+  renderScanSession();
+}
 function cancelScanSession(){
   const mode=scanSession?scanSession.mode:'';
   scanSession=null;
@@ -1885,7 +1901,7 @@ function finishBulkScan(){
   let added=0, matched=0;
   for(const e of s.entries){
     if(!e.count&&!e.report)continue;
-    const eloc=e.location||loc, ecat=e.cat||cat, eunit=e.unit||'cases';
+    const eloc=e.report?(e.location||''):(e.location||loc), ecat=e.report?(e.cat||'Food'):(e.cat||cat), eunit=e.unit||'cases';
     let match=null;
     if(e.code)match=items.find(function(x){return x.barcode&&String(x.barcode).trim()===e.code;});
     if(!match&&e.name){ const nl=e.name.toLowerCase(); match=items.find(function(x){return x.name&&x.name.trim().toLowerCase()===nl;}); }
@@ -2417,12 +2433,12 @@ function extractReportRows(text){
     var pack=null, packIdx=-1, i, pm;
     for(i=0;i<seg.lines.length;i++){ pm=reportPackIn(seg.lines[i]); if(pm){ pack=pm; packIdx=i; break; } }
     var segText=seg.lines.join(' ');
-    // A count written on the sheet sits at the very end of the row, after the
-    // secondary unit word. Handwriting usually will not read at all — a blank
-    // qty is the honest, expected result; the review screen is where it goes in.
+    // Counts are NOT read off the page (V28.12). A number trailing a unit
+    // word is as likely to be a stray from a wrapped line as a real count,
+    // and the counts written on the sheet do not read reliably anyway — a
+    // wrong count is worse than a blank one. Report rows land with qty
+    // blank; the count gets typed in during review.
     var qty='';
-    var qm=segText.match(/(Case|Each|Unit|Bag|Package|Bottle|Roll|Pail|Jar|Tub|Block|Loaf|Canister|Canist\w*|Packa\w*)\s*[|\])]*\s*(\d{1,3})\s*[^0-9A-Za-z]*$/i);
-    if(qm)qty=qm[2];
     var parts=[];
     seg.lines.forEach(function(l,i){
       var s=l;

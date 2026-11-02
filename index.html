@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inventory Buddy — V28.9</title>
+<title>Inventory Buddy — V28.10</title>
 <style>
 *{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#eafbf0;color:#222}
 header{background:#007000;color:white;padding:24px 18px}h1{margin:0 0 6px;font-size:28px}.sub{opacity:.85}
@@ -340,7 +340,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 28.9</div>
+<div class="card small no-print">Version 28.10</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1146,6 +1146,18 @@ function ocrReadComplete(text,info){
  const lines=gordonLabelLines(text);
  return lines.some(function(l){return gordonItemLine(l);});
 }
+
+async function ocrOrderFile(file,index,total,status){
+ // Orders read differently from box labels: ONE enhanced whole-page pass.
+ // The label-crop hunt and the plain downscaled pass are skipped — on a
+ // full-page invoice they cost minutes and mostly produce mush. The strip
+ // rescue in processReceiveOrder is the second stage when this comes up short.
+ status.textContent='Reading page '+index+' of '+total+'…';
+ const prog=function(m){ if(m.status==='recognizing text')status.textContent='Reading page '+index+' of '+total+'… '+Math.round((m.progress||0)*100)+'%'; };
+ const enhanced=await enhanceForOCR(file);
+ const r=await Tesseract.recognize(enhanced,'eng',{logger:prog});
+ return ocrFinish([r.data.text||''],[r.data.words||[]]);
+}
 async function ocrFile(file,index,total,status){
  const texts=[]; const wordSets=[];
  status.textContent='Reading page '+index+' of '+total+'…';
@@ -1337,6 +1349,27 @@ product=product.replace(/^0+(?=\d+$)/,'')||product;
 }
 
 
+
+function boulevardAmounts(raw){ const out=[]; const re=/(\d{1,4})[.,\s](\d{2})\b/g; let m; const s=String(raw||''); while((m=re.exec(s))){ const v=parseFloat(m[1]+'.'+m[2]); if(Number.isFinite(v)&&v>0)out.push(v); } return out; }
+function boulevardMathQty(amts){ if(!amts||amts.length<2)return ''; const per=amts[amts.length-2], tot=amts[amts.length-1]; if(!(per>0))return ''; const q=tot/per, qr=Math.round(q); return (qr>=1&&qr<=200&&Math.abs(q-qr)<0.06)?String(qr):''; }
+function fixBoulevardQtys(rows){
+ // Quantity discipline for Boulevard-shaped invoices: (1) the line's own money
+ // math (total / per-unit) outranks any grabbed number; (2) a "quantity" that
+ // only exists as a piece of a price (the 58 or the 66 in 58.66) is not a
+ // quantity — replace it with the number right before the unit word, or blank.
+ for(const r of rows){ const raw=String(r.raw||''); if(!raw)continue; const amts=boulevardAmounts(raw);
+   const mq=boulevardMathQty(amts); if(mq){ r.qty=mq; continue; }
+   if(!r.qty)continue;
+   const frags=new Set(); amts.forEach(v=>{ const p=v.toFixed(2).split('.'); frags.add(p[0]); frags.add(p[1]); });
+   if(!frags.has(String(r.qty)))continue;
+   const stripped=raw.replace(/\d{1,4}[.,\s]\d{2}\b/g,' ');
+   const toks=stripped.split(/[^A-Za-z0-9]+/).filter(Boolean);
+   if(toks.indexOf(String(r.qty))>=0)continue;
+   const ui=toks.findIndex(t=>/^(CASE|EACH|BAG|CS|CT|BOX)$/i.test(t)); let rep='';
+   if(ui>0){ const pv=toks[ui-1]; if(/^\d{1,2}$/.test(pv)&&!frags.has(pv))rep=pv; }
+   r.qty=rep;
+ }
+}
 function isBoulevardTextLoose(text){ const t=String(text||''); let s=0; if(/boulevard/i.test(t))s++; if(/ffavors/i.test(t))s++; if(/total charge/i.test(t))s++; if(/prod\.?\s*#|prod#\b/i.test(t))s++; if(/per unit/i.test(t))s++; if(/tonawanda|latina/i.test(t))s++; return s>=2; }
 function extractBoulevardLooseRows(text){
  const lines=cleanOCRLines(text); const rows=[];
@@ -1351,14 +1384,16 @@ function extractBoulevardLooseRows(text){
    let desc=(moneyAt>=0?post.slice(0,moneyAt):post).replace(/[|«»{}[\]]/g,' ').replace(/\s+/g,' ').replace(/^[^A-Za-z0-9]+/,'').replace(/[^A-Za-z0-9#\/\%\.]+$/,'').trim();
    const aw=desc.split(/\s+/).map(w=>w.replace(/[^A-Za-z]/g,'')).filter(a=>a.length>=3);
    if(aw.length<1||desc.replace(/[^A-Za-z]/g,'').length<5)continue;
-   const decs=(line.match(/\d+\s*\.\s*\d{2}\b/g)||[]).map(s=>parseFloat(s.replace(/\s+/g,''))).filter(n=>Number.isFinite(n)&&n>0);
-   let qty='';
-   if(decs.length>=2){ const pr=decs[decs.length-2], ex=decs[decs.length-1]; const q=ex/pr; const qr=Math.round(q); if(qr>=1&&qr<=500&&Math.abs(q-qr)<0.06)qty=String(qr); }
+   // Quantity discipline: money math first, then ONLY the token right before
+   // the unit word, then ONLY the token right after the product code. No other
+   // number on the line may become the quantity — a blank beats an invention.
+   let qty=boulevardMathQty(boulevardAmounts(line));
    const preToks=pre.split(/\s+/).filter(Boolean);
    let code='', codeIdx=-1;
    for(let ti=0;ti<preToks.length;ti++){ const dg=preToks[ti].replace(/\D/g,''); if(dg.length>=3&&dg.length<=5&&dg.length>=preToks[ti].replace(/[^A-Za-z0-9]/g,'').length*0.5){ code=dg; codeIdx=ti; break; } }
-   if(!qty){ for(let ti=preToks.length-1;ti>codeIdx;ti--){ const dg=preToks[ti].replace(/\D/g,''); if(dg&&dg.length<=2&&preToks[ti].replace(/[^A-Za-z0-9]/g,'').length<=4){ qty=dg; break; } } }
-   if(!qty){ const qm=pre.match(/(\d{1,3})\s*[|]?\s*$/); if(qm)qty=qm[1]; }
+   if(!qty){ for(let ti=preToks.length-1;ti>=0;ti--){ const dg=preToks[ti].replace(/\D/g,''); if(!dg)continue; if(dg.length<=2&&preToks[ti].length<=4){ qty=dg; } break; } }
+   if(!qty&&codeIdx>=0&&preToks[codeIdx+1]){ const nx=preToks[codeIdx+1].replace(/\D/g,''); if(nx&&nx.length<=2)qty=nx; }
+   if(qty){ const amts=boulevardAmounts(line); const frags=new Set(); amts.forEach(v=>{ const p=v.toFixed(2).split('.'); frags.add(p[0]); frags.add(p[1]); }); if(frags.has(qty)){ const stripped=line.replace(/\d{1,4}[.,\s]\d{2}\b/g,' '); if(stripped.split(/[^A-Za-z0-9]+/).indexOf(qty)<0)qty=''; } }
    if(!code){ const anyNum=line.match(/\b\d{3,5}\b/); if(anyNum)code=anyNum[0]; }
    const unit=unitWord==='EACH'?'each':(unitWord==='BAG'?'bags':'cases');
    rows.push({product:code,description:desc,qty:qty,unit:unit,raw:line});
@@ -1398,10 +1433,11 @@ async function processReceiveOrder(){
  let allText=''; const allRows=[];
  try{
    for(let i=0;i<receiveFiles.length;i++){
-     const r=await ocrFile(receiveFiles[i],i+1,receiveFiles.length,status);
+     const r=await ocrOrderFile(receiveFiles[i],i+1,receiveFiles.length,status);
      allText+='\n'+r.text;
      const __latRows=/boulevard/i.test(r.text)?extractBoulevardRows(r.text):(/latina/i.test(r.text)?extractLatinaRows(r.text):null); let rows=await extractOrderRowsFromWords(r.words,receiveFiles[i],status); const trows=extractOrderRows(r.text); const key=p=>String(p).replace(/^0+(?=\d+$)/,'')||String(p); if(!rows.length){rows=trows; if(/mccar/i.test(r.text))rows.forEach(t=>{t.unit='cases';});} else {const tBy={}; trows.forEach(t=>{tBy[key(t.product)]=t;}); const wKeys=new Set(); rows.forEach(w=>{wKeys.add(key(w.product)); const t=tBy[key(w.product)]; if(!t)return; const mush=/\/(case|bag|package|each|canister|loaf|cs)\b/i; if(mush.test(w.name||w.description||'')&&t.description&&!mush.test(t.description)){w.name=t.description; w.description=t.description;} if(!w.qty&&t.qty)w.qty=t.qty;}); trows.forEach(t=>{if(!wKeys.has(key(t.product)))rows.push(t);});}
-     if(__latRows&&__latRows.length){ if(__latRows.length>rows.length){rows=__latRows;} else { const __have=new Set(rows.map(x=>key(x.product))); __latRows.forEach(t=>{ if(t.product&&!__have.has(key(t.product))){rows.push(t); __have.add(key(t.product));} }); } } if(rows.length<4){ try{ const bandText=await ocrOrderBandsText(receiveFiles[i],status); if(bandText){ const comb=r.text+'\n'+bandText; let brows=extractOrderRows(comb); if(/boulevard/i.test(comb)){ const bb=extractBoulevardRows(comb); if(bb.length>brows.length)brows=bb; } if(isBoulevardTextLoose(comb)){ const bl=extractBoulevardLooseRows(comb); if(bl.length>brows.length)brows=bl; } if(brows.length>rows.length)rows=brows; } }catch(e){ console.warn('Band read skipped',e); } }
+     if(__latRows&&__latRows.length){ if(__latRows.length>rows.length){rows=__latRows;} else { const __have=new Set(rows.map(x=>key(x.product))); __latRows.forEach(t=>{ if(t.product&&!__have.has(key(t.product))){rows.push(t); __have.add(key(t.product));} }); } } if(rows.length<4){ try{ const bandText=await ocrOrderBandsText(receiveFiles[i],status); if(bandText){ const comb=r.text+'\n'+bandText; let brows=extractOrderRows(comb); if(/boulevard/i.test(comb)){ const bb=extractBoulevardRows(comb); if(bb.length>brows.length)brows=bb; } if(isBoulevardTextLoose(comb)){ const bl=extractBoulevardLooseRows(comb); if(bl.length>brows.length)brows=bl; } if(brows.length>rows.length)rows=brows; if(rows.length<4){ try{ status.textContent='Still short — one more read of the whole page, smaller…'; const small=await downscaleForOCR(receiveFiles[i],1800); const sr=await Tesseract.recognize(small,'eng'); const comb2=comb+'\n'+(sr.data.text||''); let lrows=extractOrderRows(comb2); if(/boulevard/i.test(comb2)){ const bb2=extractBoulevardRows(comb2); if(bb2.length>lrows.length)lrows=bb2; } if(isBoulevardTextLoose(comb2)){ const bl2=extractBoulevardLooseRows(comb2); if(bl2.length>lrows.length)lrows=bl2; } if(lrows.length>rows.length)rows=lrows; }catch(e){ console.warn('Last-resort read skipped',e); } } } }catch(e){ console.warn('Band read skipped',e); } }
+     if(isBoulevardTextLoose(r.text)||/boulevard/i.test(r.text)){ try{ fixBoulevardQtys(rows); }catch(e){ console.warn('Qty check skipped',e); } }
      allRows.push(...rows);
    }
    autoSelectSupplier(allText);

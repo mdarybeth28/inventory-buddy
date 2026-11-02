@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inventory Buddy — V28.12</title>
+<title>Inventory Buddy — V28.13</title>
 <style>
 *{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#eafbf0;color:#222}
 header{background:#007000;color:white;padding:24px 18px}h1{margin:0 0 6px;font-size:28px}.sub{opacity:.85}
@@ -340,7 +340,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 28.12</div>
+<div class="card small no-print">Version 28.13</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1814,7 +1814,9 @@ function scanEntriesHTML(){
       +'<span class="small">'+(e.packText?esc(e.packText):'')+scanInListTag(e.code)+(e.warn?'<b style="color:#b00020"> \u26a0 check code</b>':'')+'</span>'
       +(e.report?'<select style="flex:0 0 118px" onchange="scanEntryLoc('+i+',this)" aria-label="Location for this item">'+reportLocOptionsHTML(e.location)+'</select>':'')
       +'<button type="button" class="secondary" style="font-size:19px;min-width:42px" onclick="scanEntryCount('+i+',-1)">−</button>'
-      +'<strong style="min-width:24px;text-align:center">'+e.count+'</strong>'
+      +(e.report
+        ?'<input type="number" min="0" step="1" inputmode="numeric" style="flex:0 0 58px;text-align:center" value="'+e.count+'" oninput="scanEntryCountSet('+i+',this.value,true)" onchange="scanEntryCountSet('+i+',this.value)" aria-label="Count for this item">'
+        :'<strong style="min-width:24px;text-align:center">'+e.count+'</strong>')
       +'<button type="button" class="primary" style="font-size:19px;min-width:42px" onclick="scanEntryCount('+i+',1)">+</button>'
       +'<button type="button" class="danger" onclick="scanEntryRemove('+i+')">✕</button></div>';
   }).join('');
@@ -1834,6 +1836,19 @@ function renderScanSession(){
 }
 function scanEntryEdit(i,f,v){ if(!scanSession)return; scanSession.entries[i][f]=String(v||'').trim(); renderScanSession(); }
 function scanEntryCount(i,d){ if(!scanSession)return; scanSession.entries[i].count=Math.max(0,scanSession.entries[i].count+d); renderScanSession(); }
+function scanEntryCountSet(i,v,soft){
+  // V28.13: report rows get a type-in count — typing the count IS the
+  // report-load workflow, and a stepper-only 0 didn't read as a count
+  // Mary could set. Soft updates (each keystroke) touch only the entry,
+  // so the re-render can't steal focus mid-type; the commit (change /
+  // blur) re-renders so the tallies refresh. Writes the same field the
+  // steppers write: entries[i].count, clamped at 0.
+  if(!scanSession||!scanSession.entries[i])return;
+  let n=Math.floor(Number(v));
+  if(!Number.isFinite(n)||n<0)n=0;
+  scanSession.entries[i].count=n;
+  if(!soft)renderScanSession();
+}
 function scanEntryRemove(i){ if(!scanSession)return; scanSession.entries.splice(i,1); renderScanSession(); }
 function bulkReportMode(){ const s=scanSession; return !!(s&&s.mode==='bulk'&&s.entries.some(function(e){return e.report;})); }
 function applyBulkPickers(){ const rm=bulkReportMode(); const lp=document.getElementById('bulkLocPicker'); if(lp)lp.style.display=rm?'none':''; const cp=document.getElementById('bulkCatPicker'); if(cp)cp.style.display=rm?'none':''; }
@@ -2412,18 +2427,35 @@ function extractReportRows(text){
   function sectionOf(l){
     if(reportPackIn(l)||reportCodeAt(l))return '';
     if(l.length>70)return '';
+    // V28.13: a header is a SHORT line that is basically just the section
+    // name. A product description can itself contain a section phrase —
+    // the real worksheet's "Labels, Food Storage, 1.25 x 2 Inch" (item
+    // 708471, food-storage labels) wraps onto its own line and used to
+    // hijack the section for every row below it. So: no digits anywhere
+    // in the line (descriptions carry sizes and counts; headers don't),
+    // and once the section phrase is lifted out, almost nothing may
+    // remain — a school prefix like HPS plus a little OCR litter is
+    // fine; a sentence is not a header.
+    if(/\d/.test(l))return '';
     var up=l.toUpperCase();
-    for(var i=0;i<SECTIONS.length;i++){ if(SECTIONS[i][0].test(up))return SECTIONS[i][1]; }
+    for(var i=0;i<SECTIONS.length;i++){
+      var mm=up.match(SECTIONS[i][0]);
+      if(mm){
+        var rest=(up.slice(0,mm.index)+up.slice(mm.index+mm[0].length)).replace(/[^A-Z]/g,'');
+        if(rest.length<=12)return SECTIONS[i][1];
+        return '';
+      }
+    }
     return '';
   }
-  var section='', segs=[], cur=null;
+  var section='', sectionAt=-1, segs=[], cur=null;
   function flush(){ if(cur){ segs.push(cur); cur=null; } }
-  lines.forEach(function(l){
+  lines.forEach(function(l,li){
     if(isNoise(l))return;
     var sec=sectionOf(l);
-    if(sec){ flush(); section=sec; return; }
+    if(sec){ flush(); section=sec; sectionAt=li; return; }
     var code=reportCodeAt(l);
-    if(code){ flush(); cur={code:code,location:section,lines:[l]}; }
+    if(code){ flush(); cur={code:code,location:section,lines:[l],hdrDist:(section&&sectionAt>=0)?(li-sectionAt):Infinity}; }
     else if(cur){ cur.lines.push(l); }
   });
   flush();
@@ -2472,6 +2504,7 @@ function extractReportRows(text){
       qty:qty, unit:(primary&&unitMap[primary])?unitMap[primary]:'cases',
       primaryUnit:primary, secondaryUnit:secondary,
       location:seg.location||'',
+      _hd:(seg.hdrDist==null?Infinity:seg.hdrDist),
       cat:(/laundry/i.test(seg.location||'')?'Cleaning':(/utensil/i.test(seg.location||'')?'Supplies':'Food')),
       codeWarn:!/^\d{6}$/.test(seg.code),
       raw:segText.slice(0,200)
@@ -2482,10 +2515,16 @@ function extractReportRows(text){
   rows.forEach(function(r){
     var ex=byCode[r.code];
     if(!ex){ byCode[r.code]=r; order.push(r.code); return; }
-    if(rScore(r)>rScore(ex)){ r.qty=r.qty||ex.qty; byCode[r.code]=r; }
+    // V28.13: when duplicate copies of a code disagree (the live reader
+    // joins several OCR passes of the same page into one text), the copy
+    // whose section header sits NEAREST above its code line wins — a
+    // pass whose header was garbled or whose blocks came back reordered
+    // must not out-shout the clean read on quality score alone. Header
+    // distance first, then the quality score exactly as before.
+    if(r._hd<ex._hd||(r._hd===ex._hd&&rScore(r)>rScore(ex))){ r.qty=r.qty||ex.qty; byCode[r.code]=r; }
     else if(!ex.qty&&r.qty)ex.qty=r.qty;
   });
-  return order.map(function(c){ return byCode[c]; }).slice(0,400);
+  return order.map(function(c){ var r=byCode[c]; delete r._hd; return r; }).slice(0,400);
 }
 </script>
 <script>

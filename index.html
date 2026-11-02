@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inventory Buddy — V28.10</title>
+<title>Inventory Buddy — V28.11</title>
 <style>
 *{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#eafbf0;color:#222}
 header{background:#007000;color:white;padding:24px 18px}h1{margin:0 0 6px;font-size:28px}.sub{opacity:.85}
@@ -164,7 +164,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <label>Current quantity</label><input id="qty" type="number" min="0" step="0.1" placeholder="0">
 <label>Minimum stock</label><input id="min" type="number" min="0" step="0.1" placeholder="2">
 <label>Normal order quantity</label><input id="orderQty" type="number" min="0" step="0.1" placeholder="4">
-<label>Barcode (optional)</label>
+<label>Item number / barcode</label>
 <div class="row"><input id="barcode" inputmode="numeric" placeholder="Type barcode (optional)" style="margin-bottom:10px"></div><div class="row" style="margin-top:-4px;margin-bottom:10px"><button type="button" class="secondary" onclick="startScanner()">📷 Scan Barcode</button></div>
 <div class="small" style="margin-top:-4px;margin-bottom:8px">Adding a whole case? 📦 <b>Box Label</b> is faster — it reads the case label for you. This form is for typing an item in by hand.</div>
 <label>Supplier</label>
@@ -340,7 +340,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 28.10</div>
+<div class="card small no-print">Version 28.11</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1884,14 +1884,15 @@ function finishBulkScan(){
   const catEl=document.getElementById('bulkCategory'); const cat=catEl?catEl.value:'Food';
   let added=0, matched=0;
   for(const e of s.entries){
-    if(!e.count)continue;
+    if(!e.count&&!e.report)continue;
+    const eloc=e.location||loc, ecat=e.cat||cat, eunit=e.unit||'cases';
     let match=null;
     if(e.code)match=items.find(function(x){return x.barcode&&String(x.barcode).trim()===e.code;});
     if(!match&&e.name){ const nl=e.name.toLowerCase(); match=items.find(function(x){return x.name&&x.name.trim().toLowerCase()===nl;}); }
-    if(match){ match.qty=Number(match.qty||0)+e.count; if(!match.packSize&&e.packSize)match.packSize=e.packSize; if(!match.location&&loc)match.location=loc; matched++; }
+    if(match){ match.qty=Number(match.qty||0)+e.count; if(!match.packSize&&e.packSize)match.packSize=e.packSize; if(!match.location&&eloc)match.location=eloc; matched++; }
     else{
       if(!e.name){ alert('One scanned case has no name ('+(e.code||'no code read')+'). Type its name in the list, then file again.'); return; }
-      items.push({id:Date.now()+added,name:e.name,cat:cat,location:loc,unit:'cases',packSize:Number(e.packSize||0),qty:e.count,min:0,orderQty:0,barcode:e.code,supplierId:''}); added++;
+      items.push({id:Date.now()+added,name:e.name,cat:ecat,location:eloc,unit:eunit,packSize:Number(e.packSize||0),qty:e.count,min:0,orderQty:0,barcode:e.code,supplierId:''}); added++;
     }
   }
   persist();
@@ -2319,6 +2320,352 @@ function printPullSheet(){ document.body.classList.add('print-sheet'); try{ wind
   addReachMary();
 })();
 </script>
+<script>
+// ── V28.11: Report Load — read a supplier count worksheet (the end-of-month
+// report every school already gets) and build the whole catalog + counts in
+// the Bulk Scan review list. Nothing saves until File All, same as First Load.
+function reportUnitWord(tok){
+  var t=String(tok||'').toLowerCase().replace(/[^a-z]/g,'');
+  if(!t)return '';
+  if(t.indexOf('each')===0||t==='ea')return 'Each';
+  if(t.indexOf('canist')===0)return 'Canister';
+  if(t.indexOf('packa')===0||t==='pk'||t==='pack')return 'Package';
+  if(t.indexOf('bottl')===0||t.indexOf('botti')===0)return 'Bottle';
+  if(t.indexOf('cas')===0||t==='cs'||t.indexOf('cace')===0||t.indexOf('gase')===0||t.indexOf('gace')===0)return 'Case';
+  if(t.indexOf('bag')===0)return 'Bag';
+  if(t.indexOf('box')===0)return 'Box';
+  if(t.indexOf('roll')===0)return 'Roll';
+  if(t.indexOf('jug')===0)return 'Jug';
+  if(t.indexOf('pail')===0||t.indexOf('pall')===0)return 'Pail';
+  if(t.indexOf('loaf')===0)return 'Loaf';
+  if(t.indexOf('jar')===0)return 'Jar';
+  if(t.indexOf('tub')===0)return 'Tub';
+  if(t.indexOf('block')===0)return 'Block';
+  if(t.indexOf('unit')===0||t==='unt'||t==='unlt')return 'Unit';
+  if(t.indexOf('can')===0)return 'Can';
+  return '';
+}
+function reportPackNoun(tok){
+  var u=reportUnitWord(tok);
+  if(u==='Each'||u==='Bag'||u==='Package'||u==='Canister'||u==='Bottle'||u==='Box'||u==='Roll'||u==='Jug'||u==='Pail'||u==='Loaf'||u==='Jar'||u==='Can'||u==='Case')return u;
+  return '';
+}
+function reportPackIn(line){
+  var s=String(line||'');
+  var re=/(\d{1,4})\s*([A-Za-z]{2,10})\.?\s*\/\s*([A-Za-z]{1,10})/g, m;
+  while((m=re.exec(s))){
+    if(!reportPackNoun(m[2]))continue;
+    var d=String(m[3]).toLowerCase().replace(/[^a-z]/g,'');
+    if(!(reportUnitWord(m[3])||/^[cg]a/.test(d)||d==='c'||d==='cs'||d==='e'))continue;
+    return {num:Number(m[1]),noun:reportPackNoun(m[2]),text:m[0].replace(/\s+/g,' '),start:m.index,end:m.index+m[0].length};
+  }
+  // Second chance: the slash got lost in the read ("90 Eaches Case").
+  var re2=/(\d{1,4})\s+(Eaches|Bags|Packages|Canisters|Rolls|Bottles|Boxes|Jars)\s+(Case|Each|Cas|Cae)\b/i;
+  var m2=s.match(re2);
+  if(m2)return {num:Number(m2[1]),noun:reportPackNoun(m2[2]),text:m2[0].replace(/\s+/g,' '),start:m2.index,end:m2.index+m2[0].length};
+  return null;
+}
+function reportCodeAt(line){
+  var head=String(line||'').slice(0,20);
+  var m=head.match(/(?:^|[\s|\[{('"])(\d{4,6})(?![\d])/);
+  return m?m[1]:'';
+}
+function extractReportRows(text){
+  var SECTIONS=[
+    [/LITTLE\s*FREEZER/,'Little Freezer'],[/BIG\s*FREEZER/,'Big Freezer'],
+    [/KITCHEN\s*UTENSILS?/,'Kitchen Utensils'],[/MILK\s*COOLERS?/,'Milk Coolers'],
+    [/FOOD\s*STORAGE/,'Food Storage'],[/DRY\s*STORAGE/,'Dry Storage'],
+    [/LAUNDRY/,'Laundry Room'],[/ICE\s*CREAM/,'Ice Cream'],
+    [/WALK[-\s]*IN\s*FREEZER/,'Walk-in Freezer'],[/WALK[-\s]*IN\s*COOLER/,'Walk-in Cooler'],
+    [/\bFREEZER\b/,'Freezer'],[/\bCOOLER\b/,'Cooler'],[/\bSTORAGE\b/,'Storage'],[/\bPANTRY\b/,'Pantry']
+  ];
+  var lines=cleanOCRLines(text);
+  var joined=lines.join('\n');
+  var sectionsSeen=0;
+  lines.forEach(function(l){ var up=l.toUpperCase(); for(var i=0;i<SECTIONS.length;i++){ if(SECTIONS[i][0].test(up)){ sectionsSeen++; break; } } });
+  var isSheet=/primary\s*count|secondary\s*count/i.test(joined)||(sectionsSeen>0&&/pack\s*size/i.test(joined));
+  if(!isSheet)return [];
+  function isNoise(l){
+    if(/huntingdon|created\s*:|food\s*service|#\s*90\d{6}/i.test(l))return true;
+    if(/^page\s+\d+\s+of\s+\d+/i.test(l))return true;
+    if(/pack\s*size/i.test(l)&&/description/i.test(l))return true;
+    if(/primary\s*count/i.test(l))return true;
+    if(!/[A-Za-z]{2}/.test(l)&&!/\d{4,6}/.test(l))return true;
+    return false;
+  }
+  function sectionOf(l){
+    if(reportPackIn(l)||reportCodeAt(l))return '';
+    if(l.length>70)return '';
+    var up=l.toUpperCase();
+    for(var i=0;i<SECTIONS.length;i++){ if(SECTIONS[i][0].test(up))return SECTIONS[i][1]; }
+    return '';
+  }
+  var section='', segs=[], cur=null;
+  function flush(){ if(cur){ segs.push(cur); cur=null; } }
+  lines.forEach(function(l){
+    if(isNoise(l))return;
+    var sec=sectionOf(l);
+    if(sec){ flush(); section=sec; return; }
+    var code=reportCodeAt(l);
+    if(code){ flush(); cur={code:code,location:section,lines:[l]}; }
+    else if(cur){ cur.lines.push(l); }
+  });
+  flush();
+  var unitMap={Case:'cases',Each:'each',Bag:'bags',Package:'packs',Canister:'cans',Box:'boxes',Can:'cans'};
+  var rows=[];
+  segs.forEach(function(seg){
+    var pack=null, packIdx=-1, i, pm;
+    for(i=0;i<seg.lines.length;i++){ pm=reportPackIn(seg.lines[i]); if(pm){ pack=pm; packIdx=i; break; } }
+    var segText=seg.lines.join(' ');
+    // A count written on the sheet sits at the very end of the row, after the
+    // secondary unit word. Handwriting usually will not read at all — a blank
+    // qty is the honest, expected result; the review screen is where it goes in.
+    var qty='';
+    var qm=segText.match(/(Case|Each|Unit|Bag|Package|Bottle|Roll|Pail|Jar|Tub|Block|Loaf|Canister|Canist\w*|Packa\w*)\s*[|\])]*\s*(\d{1,3})\s*[^0-9A-Za-z]*$/i);
+    if(qm)qty=qm[2];
+    var parts=[];
+    seg.lines.forEach(function(l,i){
+      var s=l;
+      if(i===packIdx&&pack){ s=s.slice(pack.end); }
+      else if(i===0){ s=s.replace(/^[^0-9A-Za-z]{0,10}\d{4,6}(?![\d])/,' '); }
+      parts.push(s);
+    });
+    var name=parts.join(' ');
+    name=name.replace(/(\d{1,4})\s*[A-Za-z]{2,10}\.?\s*\/\s*[A-Za-z]{1,10}/g,' ');
+    name=name.replace(/[|\[\]{}<>«»]+/g,' ');
+    var kept=[];
+    name.split(/\s+/).filter(Boolean).forEach(function(w){
+      var c=w.replace(/^[^A-Za-z0-9#]+/,'').replace(/[^A-Za-z0-9#%']+$/,'');
+      if(!c)return;
+      if(/^\d+(\.\d+)?$/.test(c))return;
+      if(reportUnitWord(c))return;
+      if(c.length>=5&&!/[aeiou]/i.test(c)&&!/iqf|usda/i.test(c))return;
+      kept.push(c);
+    });
+    while(kept.length>1){ var last=kept[kept.length-1]; if(last.length<=2&&!/[aeiou]/i.test(last)&&!/\d/.test(last)&&!/^#/.test(last))kept.pop(); else break; }
+    name=kept.join(' ').replace(/\s+/g,' ').trim();
+    if(name.replace(/[^A-Za-z]/g,'').length<5)return;
+    if(!pack&&!/^\d{6}$/.test(seg.code))return;
+    var allToks=segText.split(/\s+/), units=[], k, u;
+    for(k=allToks.length-1;k>=0&&units.length<2;k--){ u=reportUnitWord(allToks[k]); if(u)units.push(u); }
+    var primary=units.length>1?units[1]:(units[0]||'');
+    var secondary=units.length?units[0]:'';
+    rows.push({
+      code:seg.code, description:name,
+      packSize:pack?pack.num:0, packText:pack?pack.text:'',
+      qty:qty, unit:(primary&&unitMap[primary])?unitMap[primary]:'cases',
+      primaryUnit:primary, secondaryUnit:secondary,
+      location:seg.location||'',
+      cat:(/laundry/i.test(seg.location||'')?'Cleaning':(/utensil/i.test(seg.location||'')?'Supplies':'Food')),
+      codeWarn:!/^\d{6}$/.test(seg.code),
+      raw:segText.slice(0,200)
+    });
+  });
+  var byCode={}, order=[];
+  function rScore(x){ return (x.packSize?2:0)+(x.qty?1:0)+Math.min(3,(x.description||'').length/20); }
+  rows.forEach(function(r){
+    var ex=byCode[r.code];
+    if(!ex){ byCode[r.code]=r; order.push(r.code); return; }
+    if(rScore(r)>rScore(ex)){ r.qty=r.qty||ex.qty; byCode[r.code]=r; }
+    else if(!ex.qty&&r.qty)ex.qty=r.qty;
+  });
+  return order.map(function(c){ return byCode[c]; }).slice(0,400);
+}
+</script>
+<script>
+// ── V28.11: Report Load door — inside the First Load / Bulk Scan area ──
+(function(){
+  // Seam into the existing Bulk Scan review: a report row becomes a scan
+  // entry that ALSO carries its own location, unit and category. Rows with
+  // no location fall back to the pile location in finishBulkScan, exactly
+  // like label scans do today.
+  window.reportLoadAddRow=function(row){
+    if(typeof scanSession==='undefined'||!scanSession||scanSession.mode!=='bulk')return false;
+    var code=String(row.code||'').trim();
+    var name=String(row.description||'').trim();
+    if(!code&&!name)return false;
+    var ex=null, i;
+    if(code){ for(i=0;i<scanSession.entries.length;i++){ if(scanSession.entries[i].code===code){ ex=scanSession.entries[i]; break; } } }
+    if(ex){
+      if(!ex.name&&name)ex.name=name;
+      if(!ex.packSize&&row.packSize)ex.packSize=row.packSize;
+      if(!ex.packText&&row.packText)ex.packText=row.packText;
+      if(ex.report&&row.qty&&!ex.count)ex.count=Number(row.qty)||0;
+      if(!ex.location&&row.location)ex.location=row.location;
+      if(!ex.unit&&row.unit)ex.unit=row.unit;
+      if(!ex.cat&&row.cat)ex.cat=row.cat;
+      ex.report=true;
+      return false;
+    }
+    scanSession.entries.push({
+      code:code, name:name, packSize:Number(row.packSize||0), packText:row.packText||'',
+      count:Number(row.qty||0), warn:!/^\d{6}$/.test(code),
+      location:row.location||'', unit:row.unit||'cases', cat:row.cat||'Food', report:true
+    });
+    return true;
+  };
+
+  function mergeRowsIntoReview(rows,pageText){
+    var added=0;
+    rows.forEach(function(r){ if(window.reportLoadAddRow(r))added++; });
+    if(rows.length<3){
+      // A supplier invoice may be mixed in with the report pages — give the
+      // generic order reader a turn and keep any codes the report pass missed.
+      try{
+        var seen={};
+        scanSession.entries.forEach(function(e){ if(e.code)seen[e.code]=1; });
+        extractOrderRows(pageText||'').forEach(function(o){
+          var code=String(o.product||'').trim();
+          if(!code||seen[code])return;
+          seen[code]=1;
+          if(window.reportLoadAddRow({code:code,description:o.description||'',packSize:0,packText:'',qty:o.qty||'',unit:o.unit||'cases',location:'',cat:'Food'}))added++;
+        });
+      }catch(e){}
+    }
+    if(typeof renderScanSession==='function')renderScanSession();
+    return added;
+  }
+
+  // pdf.js, loaded only when a PDF is actually picked (the app must keep
+  // working offline / without it — page photos are always the fallback).
+  var PDFJS_SRC='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  var PDFJS_WORKER='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  function loadPdfJs(){
+    return new Promise(function(resolve,reject){
+      if(window.pdfjsLib){ resolve(window.pdfjsLib); return; }
+      var s=document.createElement('script');
+      s.src=PDFJS_SRC;
+      s.onload=function(){ try{ window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS_WORKER; resolve(window.pdfjsLib); }catch(e){ reject(e); } };
+      s.onerror=function(){ reject(new Error('PDF reader could not load')); };
+      document.head.appendChild(s);
+    });
+  }
+  function pdfPageText(page){
+    return page.getTextContent().then(function(tc){
+      var byY={};
+      tc.items.forEach(function(it){
+        var y=Math.round(it.transform[5]);
+        if(!byY[y])byY[y]=[];
+        byY[y].push({x:it.transform[4],t:it.str});
+      });
+      var ys=Object.keys(byY).map(Number).sort(function(a,b){ return b-a; });
+      return ys.map(function(y){
+        return byY[y].sort(function(a,b){ return a.x-b.x; }).map(function(p){ return p.t; }).join(' ');
+      }).join('\n');
+    });
+  }
+  function pdfPageToBlob(page){
+    var vp=page.getViewport({scale:2});
+    var c=document.createElement('canvas');
+    c.width=Math.round(vp.width); c.height=Math.round(vp.height);
+    var ctx=c.getContext('2d');
+    return page.render({canvasContext:ctx,viewport:vp}).promise.then(function(){
+      return new Promise(function(res){ c.toBlob(function(b){ res(b); },'image/jpeg',0.92); });
+    });
+  }
+
+  window.startReportLoad=async function(event){
+    var files=Array.prototype.slice.call((event.target&&event.target.files)||[]);
+    event.target.value='';
+    if(!files.length)return;
+    var st=document.getElementById('reportLoadStatus');
+    var bstatus=document.getElementById('bulkStatus');
+    function say(msg){ if(st)st.textContent=msg; if(bstatus)bstatus.textContent=msg; }
+    try{
+      if(typeof scanSession!=='undefined'&&scanSession&&scanSession.mode==='eom'){ alert('Finish or cancel the End of Month count first, then load your report.'); return; }
+      if(!scanSession||scanSession.mode!=='bulk'){ startBulkScan(); }
+      // Phase 1: open any PDFs just to count pages, so the progress line can
+      // say "Reading page N of M" honestly.
+      var jobs=[], totalPages=0, pdfFailed=false, pdfLib=null, f, file;
+      for(f=0;f<files.length;f++){
+        file=files[f];
+        var isPdf=/\.pdf$/i.test(file.name||'')||file.type==='application/pdf';
+        if(!isPdf){ jobs.push({file:file,pages:1}); totalPages+=1; continue; }
+        if(!pdfLib){ try{ pdfLib=await loadPdfJs(); }catch(e){ pdfLib=null; } }
+        if(pdfLib){
+          try{
+            var buf=await file.arrayBuffer();
+            var doc=await pdfLib.getDocument({data:buf}).promise;
+            jobs.push({doc:doc,pages:doc.numPages});
+            totalPages+=doc.numPages;
+            continue;
+          }catch(e){ /* fall through to the friendly failure below */ }
+        }
+        pdfFailed=true;
+        jobs.push({failed:true,pages:1});
+        totalPages+=1;
+      }
+      if(pdfFailed){
+        say('That PDF could not be opened here — the PDF reader needs internet the first time it is used. No problem: photograph the report pages instead and pick the photos here. Nothing was lost.');
+      }
+      // Phase 2: read page by page.
+      var pageNo=0, addedRows=0, readPages=0, j, job;
+      for(j=0;j<jobs.length;j++){
+        job=jobs[j];
+        if(job.failed)continue;
+        if(job.file){
+          pageNo++;
+          say('Reading page '+pageNo+' of '+totalPages+'…');
+          try{
+            var r=await ocrFile(job.file,pageNo,totalPages,bstatus||st);
+            addedRows+=mergeRowsIntoReview(extractReportRows(r.text||''),r.text||'');
+            readPages++;
+          }catch(e){}
+        }else{
+          for(var p=1;p<=job.pages;p++){
+            pageNo++;
+            say('Reading page '+pageNo+' of '+totalPages+'…');
+            try{
+              var page=await job.doc.getPage(p);
+              var txt=await pdfPageText(page);
+              var rows=extractReportRows(txt||'');
+              var bestText=txt;
+              if(rows.length<3){
+                // Scanned-in PDF page (no text inside): draw it and read it
+                // like a photo. Keep whichever read found more rows.
+                var blob=await pdfPageToBlob(page);
+                if(blob){
+                  var rr=await ocrFile(blob,pageNo,totalPages,bstatus||st);
+                  var rows2=extractReportRows(rr.text||'');
+                  if(rows2.length>rows.length){ rows=rows2; bestText=rr.text; }
+                }
+              }
+              addedRows+=mergeRowsIntoReview(rows,bestText||'');
+              readPages++;
+            }catch(e){}
+          }
+        }
+        if(typeof renderScanSession==='function')renderScanSession();
+      }
+      say('Report load done: '+addedRows+' item'+(addedRows===1?'':'s')+' from '+readPages+' page'+(readPages===1?'':'s')+' in the list below. Check every line against your paper — fix any name or code, set the count on rows that had a number written in (rows with no count start at 0) — then tap File All These Cases.');
+      var bp=document.getElementById('bulkPanel');
+      if(bp&&bp.scrollIntoView)bp.scrollIntoView({block:'start'});
+    }catch(err){
+      say('Report Load hit a snag: '+((err&&err.message)?err.message:err));
+    }
+  };
+
+  function addReportLoadUI(){
+    if(document.getElementById('reportLoadBox'))return;
+    var host=document.getElementById('firstLoadBox');
+    var bp=document.getElementById('bulkPanel');
+    var parent=host?host.parentElement:(bp?bp.parentElement:null);
+    if(!parent)return;
+    var div=document.createElement('div');
+    div.id='reportLoadBox';
+    div.style.marginTop='14px'; div.style.borderTop='1px solid #eee'; div.style.paddingTop='12px';
+    div.innerHTML='<h3 style="margin:4px 0">📄 Load from a count report</h3>'
+      +'<p class="small" style="margin-top:4px">At a computer works best. Download the report from your supplier, or photograph the pages, and Buddy will build the list — you check it before anything saves.</p>'
+      +'<button type="button" class="secondary" onclick="document.getElementById(\'reportLoadInput\').click()">📄 Pick report pages or a PDF</button>'
+      +'<input id="reportLoadInput" type="file" accept="image/*,.pdf,application/pdf" multiple class="hidden" onchange="startReportLoad(event)">'
+      +'<div id="reportLoadStatus" class="small" style="margin-top:6px"></div>';
+    if(host&&host.nextSibling)parent.insertBefore(div,host.nextSibling);
+    else parent.appendChild(div);
+  }
+  addReportLoadUI();
+})();
+</script>
+
 </body>
 
 </html>

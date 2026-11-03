@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inventory Buddy — V28.15</title>
+<title>Inventory Buddy — V28.16</title>
 <style>
 *{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#eafbf0;color:#222}
 header{background:#007000;color:white;padding:24px 18px}h1{margin:0 0 6px;font-size:28px}.sub{opacity:.85}
@@ -344,7 +344,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 28.15</div>
+<div class="card small no-print">Version 28.16</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -764,12 +764,74 @@ async function rotateImage90(file){ return new Promise(function(resolve){ const 
 // letter-reader (OCR) exactly as before. Review-before-save never changes.
 function blobToBase64(blob){ return new Promise(function(resolve,reject){ const fr=new FileReader(); fr.onload=function(){ const s=String(fr.result||''); const i=s.indexOf(','); resolve(i>=0?s.slice(i+1):s); }; fr.onerror=function(){ reject(new Error('That photo could not be opened.')); }; fr.readAsDataURL(blob); }); }
 async function visionRead(fileOrBlob,kind){
+  // V28.16: shrink the photo before it goes up the wire. A full-size phone
+  // photo is several MB, and on a real connection that upload was most of
+  // the wait (the first live phone test looked completely dead). The long
+  // edge is capped at 1600px and the photo is re-saved as JPEG — small
+  // print on labels and invoices stays readable at that size, and iPhone
+  // HEIC picks become JPEG, which the door reads natively. Anything that
+  // goes wrong while shrinking just sends the original photo: prep can
+  // never block a read.
+  async function prepPhoto(blob){
+    try{
+      if(!blob)return blob;
+      var type=String(blob.type||'').toLowerCase();
+      var size=Number(blob.size||0);
+      // No working canvas on this device/browser -> send the original.
+      var probe=null;
+      try{ probe=document.createElement('canvas'); }catch(e){}
+      if(!probe||!probe.getContext||!probe.getContext('2d'))return blob;
+      // Decode once: bitmap first (the OCR path's way), picture element
+      // second (the rotate helpers' way).
+      var dec=null;
+      if(typeof createImageBitmap==='function'){
+        try{ var bmp=await createImageBitmap(blob); dec={src:bmp,w:bmp.width||0,h:bmp.height||0,close:function(){ try{ if(bmp.close)bmp.close(); }catch(e){} }}; }catch(e){ dec=null; }
+      }
+      if(!dec){
+        dec=await new Promise(function(resolve){
+          var img=new Image(); var url='';
+          try{ url=URL.createObjectURL(blob); }catch(e){ resolve(null); return; }
+          img.onload=function(){ resolve({src:img,w:img.naturalWidth||img.width||0,h:img.naturalHeight||img.height||0,close:function(){ try{ URL.revokeObjectURL(url); }catch(e){} }}); };
+          img.onerror=function(){ try{ URL.revokeObjectURL(url); }catch(e){} resolve(null); };
+          img.src=url;
+        });
+      }
+      if(!dec||!dec.w||!dec.h){ if(dec&&dec.close)dec.close(); return blob; }
+      var longEdge=Math.max(dec.w,dec.h);
+      // Already small enough, and a door-friendly type: send it untouched.
+      if(longEdge<=1600&&(type==='image/jpeg'||type==='image/png')&&size>0&&size<=1258291){ dec.close(); return blob; }
+      var scale=longEdge>1600?1600/longEdge:1;
+      var w=Math.max(1,Math.round(dec.w*scale)), h=Math.max(1,Math.round(dec.h*scale));
+      var c=document.createElement('canvas'); c.width=w; c.height=h;
+      var ctx=c.getContext('2d');
+      if(!ctx){ dec.close(); return blob; }
+      ctx.drawImage(dec.src,0,0,w,h);
+      dec.close();
+      var out=await new Promise(function(resolve){ try{ c.toBlob(function(b){ resolve(b||null); },'image/jpeg',0.85); }catch(e){ resolve(null); } });
+      return out||blob;
+    }catch(e){ return blob; }
+  }
   let token='';
   try{ const r=await inventoryBuddySupabase.auth.getSession(); token=(r&&r.data&&r.data.session&&r.data.session.access_token)||''; }catch(e){}
   if(!token)throw new Error('The new reader needs you signed in.');
-  const b64=await blobToBase64(fileOrBlob);
+  const sendBlob=await prepPhoto(fileOrBlob);
+  const b64=await blobToBase64(sendBlob);
   if(!b64)throw new Error('That photo could not be opened.');
-  const resp=await fetch(SUPABASE_URL+'/functions/v1/vision-read',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,'apikey':SUPABASE_PUBLISHABLE_KEY},body:JSON.stringify({image_base64:b64,mime_type:(fileOrBlob&&fileOrBlob.type)||'image/jpeg',kind:kind})});
+  // V28.16: a hard 35-second limit. If the door or the network hangs, the
+  // read gives up (a non-cap error) and every caller falls back to the
+  // basic letter-reader: a slow reader must never look like a dead screen.
+  // (The test suite may shorten the wait through visionRead.TIMEOUT_MS.)
+  const limitMs=visionRead.TIMEOUT_MS||35000;
+  const ctl=(typeof AbortController!=='undefined')?new AbortController():null;
+  const timer=ctl?setTimeout(function(){ try{ ctl.abort(); }catch(e){} },limitMs):null;
+  let resp;
+  try{
+    resp=await fetch(SUPABASE_URL+'/functions/v1/vision-read',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,'apikey':SUPABASE_PUBLISHABLE_KEY},body:JSON.stringify({image_base64:b64,mime_type:(sendBlob&&sendBlob.type)||'image/jpeg',kind:kind}),signal:ctl?ctl.signal:undefined});
+  }catch(fe){
+    const err=new Error('The new reader did not answer in time — the basic reader will read this one.');
+    err.cap=false;
+    throw err;
+  }finally{ if(timer)clearTimeout(timer); }
   let body=null; try{ body=await resp.json(); }catch(e){}
   if(!resp.ok){ const err=new Error((body&&body.error)||'The new reader could not read that photo.'); err.status=resp.status; err.cap=(resp.status===429); throw err; }
   if(!body||body.error)throw new Error((body&&body.error)||'The new reader could not read that photo.');
@@ -785,7 +847,7 @@ async function visionLabelInfo(file){
   const unsure=(v&&Array.isArray(v.unsure))?v.unsure:[];
   return {code:code,description:desc,packSize:pack,packText:String((v&&v.packText)||'').trim(),reader:'vision',codeWarn:(code.length!==6||unsure.indexOf('code')>=0)};
 }
-async function readBoxLabel(event){  const file=event.target.files&&event.target.files[0];  if(!file)return;  const status=document.getElementById('boxLabelStatus');  const box=document.getElementById('boxLabelResult');  box.innerHTML='';  let capNote=false;  try{   const vi=await visionLabelInfo(file);   if(vi){ renderBoxLabelResult(vi); status.textContent='Label read with the new reader — check the fields, fix anything wrong, then save.'; if(!vi.description&&vi.code)status.textContent='The new reader got the item code but could not read the name - type the name in, then save.'; event.target.value=''; return; }  }catch(ve){ if(ve&&ve.cap)capNote=true; }  try{   const r=await ocrFile(file,1,1,status);   let info=extractBoxLabelInfo(r.text); if(!labelNameSane(info.description)||(!info.code&&!info.packSize)){status.textContent='That read looks incomplete - trying the photo turned around...'; const rf=await rotateImage180(file); const r2=await ocrFile(rf,1,1,status); const info2=extractBoxLabelInfo(r2.text); info=mergeLabelInfo(info,info2); if(!labelNameSane(info.description)||(!info.code&&!info.packSize)){status.textContent='Still thin - trying the photo sideways...'; const sf=await rotateImage90(file); const r3=await ocrFile(sf,1,1,status); info=mergeLabelInfo(info,extractBoxLabelInfo(r3.text));}}   renderBoxLabelResult(info);   status.textContent=(info.code||info.description)?'Label read with the basic reader — check the fields, fix anything wrong, then save.':'Could not read the label clearly. Try a closer, straight-on photo with the label filling the picture.';  if(!info.description&&info.code)status.textContent='I read the item code but could not read the name - type the name in, then save.'; if(capNote&&(info.code||info.description))status.textContent+=' (The new reader has done its reads for today, so the basic reader read this one.)'; }catch(e){status.textContent='Could not read the label: '+((e&&e.message)?e.message:e);}  event.target.value=''; } function renderBoxLabelResult(info){  const box=document.getElementById('boxLabelResult');  let blKnownUpc=String((info&&info.upc)||'');  if(!blKnownUpc&&info&&info.code){ try{ const km=(typeof itemsWithCode==='function')?itemsWithCode(info.code):[]; if(km.length&&km[0].upc)blKnownUpc=String(km[0].upc); }catch(e){} }  box.innerHTML='<div class="card" style="margin-top:10px"><b>Label details</b><p class="small">Check and fix anything the camera misread, then save.</p>'+boxLabelMatchNote(info)+'<label>Item code</label><input id="blCode" value="'+esc(info.code)+'" oninput="blCodeWarnCheck()">'+'<div id="blCodeWarn" class="small" style="display:'+((info.codeWarn||!/^\d{6}$/.test(String(info.code||'')))?'block':'none')+';color:#b02a37;font-weight:bold">⚠ Check this number before you save: Gordon item numbers are 6 numbers, and this one is not — it may be the SUPPLIER number or the stripes barcode. The real one is in the yellow ITEM CODE box on the label. You can still save (some local items really do have shorter numbers).</div>'  +'<label>Item name</label><input id="blName" value="'+esc(info.description)+'">'  +'<label>Barcode (the stripes number — optional)</label><input id="blUpc" inputmode="numeric" value="'+esc(blKnownUpc)+'" placeholder="The number printed under the stripes — saved with this item">'  +'<label>Pack size (items per case)</label><input id="blPack" type="number" min="0" step="1" value="'+(info.packSize||'')+'" placeholder="Example: 100">'  +'<label>Unit</label><select id="blUnit"><option>cases</option><option>crates</option><option>boxes</option><option>cans</option><option>bags</option><option>packs</option><option>each</option><option>pounds</option><option>gallons</option></select>'  +'<label>Quantity on hand</label><input id="blQty" type="number" min="0" step="0.01" value="1">'  +'<label>Category</label><select id="LocationCategory"><option>Food</option><option>Paper</option><option>Cleaning</option><option>Beverage</option><option>Supplies</option><option>Other</option></select>'  +'<label>Location</label><select id="blLocation" onchange="boxLocationChanged(this)">'+locationOptionsHTML(localStorage.getItem('ibBlLocation')||'')+'</select>'  +'<div class="row" style="margin-top:10px;flex-wrap:wrap"><button type="button" class="primary" onclick="saveBoxLabelItem()">💾 Save to Inventory</button></div></div>'; } function saveBoxLabelItem(){  const name=document.getElementById('blName').value.trim();  if(!name)return alert('Please enter an item name.');  const code=document.getElementById('blCode').value.trim();  const blUpcEl=document.getElementById('blUpc');  const blUpc=blUpcEl?blUpcEl.value.trim():'';  const addQty=Number(document.getElementById('blQty').value||0);  const blLoc=document.getElementById('blLocation').value.trim();  localStorage.setItem('ibBlLocation',blLoc);  let match=null;  if(code){match=items.find(function(x){return x.barcode&&String(x.barcode).trim()===code;});}  if(!match){const nl=name.toLowerCase();  match=items.find(function(x){return x.name&&x.name.trim().toLowerCase()===nl;});}  let matched=false;  let locClash='';  if(match){const savedLoc=match.location?String(match.location).trim():'';  if(savedLoc&&blLoc&&savedLoc.toLowerCase()!==blLoc.toLowerCase())locClash=savedLoc;  match.qty=Number(match.qty||0)+addQty;  if(!match.packSize)match.packSize=Number(document.getElementById('blPack').value||0);  if(!match.location&&blLoc)match.location=blLoc;  if(blUpc&&!match.upc)match.upc=blUpc;  matched=true;}else{items.push({id:Date.now(),name:name,cat:document.getElementById('LocationCategory').value,location:blLoc,unit:document.getElementById('blUnit').value,packSize:Number(document.getElementById('blPack').value||0),qty:addQty,min:0,orderQty:0,barcode:code,upc:blUpc,supplierId:''});}  persist();  document.getElementById('boxLabelResult').innerHTML='';  document.getElementById('boxLabelStatus').textContent=(matched?('Matched: '+match.name+' — added '+addQty+', now '+match.qty+' ✓ Ready for the next label.'):('Saved: '+name+' ✓ Ready for the next label.'))+(locClash?(' ⚠ Careful: '+match.name+' is marked as being in '+locClash+', but you just scanned it as '+blLoc+'.'):'');  noteSessionScan(code); const fl=document.getElementById('fastLoad');  if(fl&&fl.checked){fastLoadNext();} } function show(id){
+async function readBoxLabel(event){  const file=event.target.files&&event.target.files[0];  if(!file)return;  const status=document.getElementById('boxLabelStatus');  const box=document.getElementById('boxLabelResult');  box.innerHTML='';  let capNote=false;  status.textContent='Reading your label with the new reader…';  try{   const vi=await visionLabelInfo(file);   if(vi){ renderBoxLabelResult(vi); status.textContent='Label read with the new reader — check the fields, fix anything wrong, then save.'; if(!vi.description&&vi.code)status.textContent='The new reader got the item code but could not read the name - type the name in, then save.'; event.target.value=''; return; }  }catch(ve){ if(ve&&ve.cap)capNote=true; }  try{   const r=await ocrFile(file,1,1,status);   let info=extractBoxLabelInfo(r.text); if(!labelNameSane(info.description)||(!info.code&&!info.packSize)){status.textContent='That read looks incomplete - trying the photo turned around...'; const rf=await rotateImage180(file); const r2=await ocrFile(rf,1,1,status); const info2=extractBoxLabelInfo(r2.text); info=mergeLabelInfo(info,info2); if(!labelNameSane(info.description)||(!info.code&&!info.packSize)){status.textContent='Still thin - trying the photo sideways...'; const sf=await rotateImage90(file); const r3=await ocrFile(sf,1,1,status); info=mergeLabelInfo(info,extractBoxLabelInfo(r3.text));}}   renderBoxLabelResult(info);   status.textContent=(info.code||info.description)?'Label read with the basic reader — check the fields, fix anything wrong, then save.':'Could not read the label clearly. Try a closer, straight-on photo with the label filling the picture.';  if(!info.description&&info.code)status.textContent='I read the item code but could not read the name - type the name in, then save.'; if(capNote&&(info.code||info.description))status.textContent+=' (The new reader has done its reads for today, so the basic reader read this one.)'; }catch(e){status.textContent='Could not read the label: '+((e&&e.message)?e.message:e);}  event.target.value=''; } function renderBoxLabelResult(info){  const box=document.getElementById('boxLabelResult');  let blKnownUpc=String((info&&info.upc)||'');  if(!blKnownUpc&&info&&info.code){ try{ const km=(typeof itemsWithCode==='function')?itemsWithCode(info.code):[]; if(km.length&&km[0].upc)blKnownUpc=String(km[0].upc); }catch(e){} }  box.innerHTML='<div class="card" style="margin-top:10px"><b>Label details</b><p class="small">Check and fix anything the camera misread, then save.</p>'+boxLabelMatchNote(info)+'<label>Item code</label><input id="blCode" value="'+esc(info.code)+'" oninput="blCodeWarnCheck()">'+'<div id="blCodeWarn" class="small" style="display:'+((info.codeWarn||!/^\d{6}$/.test(String(info.code||'')))?'block':'none')+';color:#b02a37;font-weight:bold">⚠ Check this number before you save: Gordon item numbers are 6 numbers, and this one is not — it may be the SUPPLIER number or the stripes barcode. The real one is in the yellow ITEM CODE box on the label. You can still save (some local items really do have shorter numbers).</div>'  +'<label>Item name</label><input id="blName" value="'+esc(info.description)+'">'  +'<label>Barcode (the stripes number — optional)</label><input id="blUpc" inputmode="numeric" value="'+esc(blKnownUpc)+'" placeholder="The number printed under the stripes — saved with this item">'  +'<label>Pack size (items per case)</label><input id="blPack" type="number" min="0" step="1" value="'+(info.packSize||'')+'" placeholder="Example: 100">'  +'<label>Unit</label><select id="blUnit"><option>cases</option><option>crates</option><option>boxes</option><option>cans</option><option>bags</option><option>packs</option><option>each</option><option>pounds</option><option>gallons</option></select>'  +'<label>Quantity on hand</label><input id="blQty" type="number" min="0" step="0.01" value="1">'  +'<label>Category</label><select id="LocationCategory"><option>Food</option><option>Paper</option><option>Cleaning</option><option>Beverage</option><option>Supplies</option><option>Other</option></select>'  +'<label>Location</label><select id="blLocation" onchange="boxLocationChanged(this)">'+locationOptionsHTML(localStorage.getItem('ibBlLocation')||'')+'</select>'  +'<div class="row" style="margin-top:10px;flex-wrap:wrap"><button type="button" class="primary" onclick="saveBoxLabelItem()">💾 Save to Inventory</button></div></div>'; } function saveBoxLabelItem(){  const name=document.getElementById('blName').value.trim();  if(!name)return alert('Please enter an item name.');  const code=document.getElementById('blCode').value.trim();  const blUpcEl=document.getElementById('blUpc');  const blUpc=blUpcEl?blUpcEl.value.trim():'';  const addQty=Number(document.getElementById('blQty').value||0);  const blLoc=document.getElementById('blLocation').value.trim();  localStorage.setItem('ibBlLocation',blLoc);  let match=null;  if(code){match=items.find(function(x){return x.barcode&&String(x.barcode).trim()===code;});}  if(!match){const nl=name.toLowerCase();  match=items.find(function(x){return x.name&&x.name.trim().toLowerCase()===nl;});}  let matched=false;  let locClash='';  if(match){const savedLoc=match.location?String(match.location).trim():'';  if(savedLoc&&blLoc&&savedLoc.toLowerCase()!==blLoc.toLowerCase())locClash=savedLoc;  match.qty=Number(match.qty||0)+addQty;  if(!match.packSize)match.packSize=Number(document.getElementById('blPack').value||0);  if(!match.location&&blLoc)match.location=blLoc;  if(blUpc&&!match.upc)match.upc=blUpc;  matched=true;}else{items.push({id:Date.now(),name:name,cat:document.getElementById('LocationCategory').value,location:blLoc,unit:document.getElementById('blUnit').value,packSize:Number(document.getElementById('blPack').value||0),qty:addQty,min:0,orderQty:0,barcode:code,upc:blUpc,supplierId:''});}  persist();  document.getElementById('boxLabelResult').innerHTML='';  document.getElementById('boxLabelStatus').textContent=(matched?('Matched: '+match.name+' — added '+addQty+', now '+match.qty+' ✓ Ready for the next label.'):('Saved: '+name+' ✓ Ready for the next label.'))+(locClash?(' ⚠ Careful: '+match.name+' is marked as being in '+locClash+', but you just scanned it as '+blLoc+'.'):'');  noteSessionScan(code); const fl=document.getElementById('fastLoad');  if(fl&&fl.checked){fastLoadNext();} } function show(id){
   const savedScroll = window.scrollY;
  if(id!=='add') stopScanner();
  ['add','inventory','low','order','monthly','quick','history','suppliers','receive','boxlabel','eom'].forEach(x=>{
@@ -1509,6 +1571,7 @@ async function processReceiveOrder(){
  try{
    for(let i=0;i<receiveFiles.length;i++){
      let rows=null;
+     status.textContent='Reading photo '+(i+1)+' of '+receiveFiles.length+' with the new reader…';
      try{
        const v=await visionRead(receiveFiles[i],'invoice');
        const vr=v?visionRowsToReview(v.rows):[];
@@ -1870,6 +1933,7 @@ function scanInListTag(code){
 let scanSession=null; // {mode:'bulk'|'eom', location:'', entries:[{code,name,packSize,packText,count}], report:null}
 async function fastScanPhoto(file,statusEl){
   let capHit=false;
+  if(statusEl)statusEl.textContent='Reading with the new reader…';
   try{
     const vi=await visionLabelInfo(file);
     if(vi)return vi;
@@ -2752,7 +2816,7 @@ function extractReportRows(text){
         if(job.failed)continue;
         if(job.file){
           pageNo++;
-          say('Reading page '+pageNo+' of '+totalPages+'…');
+          say('Reading page '+pageNo+' of '+totalPages+' with the new reader…');
           var vDone=false;
           try{
             var vv=await visionRead(job.file,'report');
@@ -2782,6 +2846,7 @@ function extractReportRows(text){
                 var blob=await pdfPageToBlob(page);
                 if(blob){
                   var vrows3=null;
+                  say('Reading page '+pageNo+' of '+totalPages+' with the new reader…');
                   try{ var vv3=await visionRead(blob,'report'); if(vv3) vrows3=visionRowsToReport(vv3.rows); }catch(ve3){ if(ve3&&ve3.cap)rlCapHit=true; }
                   if(vrows3&&vrows3.length>rows.length){ rows=vrows3; rlVisionPages++; }
                   else{

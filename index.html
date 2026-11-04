@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inventory Buddy — V28.18</title>
+<title>Inventory Buddy — V28.19</title>
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -347,7 +347,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 28.18</div>
+<div class="card small no-print">Version 28.19</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -639,25 +639,71 @@ async function readBarcodePhoto(event){
  scannerMode=mode;
  onScanSuccess(code);
 }
-function findItemByNumber(code){
+// V28.19: what a believable item code looks like. Gordon codes are 6 digits,
+// Genesee A# codes are 7 digits, Willow Run ItemNo codes start with a letter
+// (S110080), and some local items honestly run 5 digits. Only long pure-number
+// strings (8+, the shape of school account and order numbers) are risky.
+function codeLooksRisky(code){
  const c=String(code||'').trim();
- if(!c)return null;
- return items.find(function(i){return String(i.barcode||'').trim()===c;})||items.find(function(i){return String(i.upc||'').trim()===c;})||null;
+ if(!c)return false;
+ return /^\d{8,}$/.test(c);
+}
+// V28.19: distributor stickers (Genesee) print a QR code whose payload is the
+// item code, a dot, then the route/pack code — "2584159.003209" means the
+// item code is 2584159. Pull that leading number out of any QR payload.
+function qrItemCode(raw){
+ const s=String(raw||'').trim();
+ if(!s)return '';
+ const m=s.match(/^(\d{6,7})\.\d+$/);
+ if(m)return m[1];
+ const m2=s.match(/\b(\d{6,7})\.\d{3,}\b/);
+ if(m2)return m2[1];
+ if(/^\d{6,7}$/.test(s))return s;
+ return '';
+}
+async function qrCodeFromPhoto(file){
+ try{
+  if(!('BarcodeDetector' in window)||!window.createImageBitmap)return '';
+  const bmp=await createImageBitmap(file);
+  const det=new BarcodeDetector({formats:['qr_code','data_matrix','aztec']});
+  const found=await det.detect(bmp);
+  if(found&&found.length){
+   for(let i=0;i<found.length;i++){
+    const qc=qrItemCode(found[i].rawValue);
+    if(qc)return qc;
+   }
+  }
+ }catch(e){}
+ return '';
+}
+function findItemByNumber(code){
+ const c0=String(code||'').trim();
+ if(!c0)return null;
+ const qm=c0.match(/^(\d{6,7})\.\d+$/)||c0.match(/\b(\d{6,7})\.\d{3,}\b/);
+ const qc=qm?qm[1]:(/^\d{6,7}$/.test(c0)?c0:'');
+ const tries=(qc&&qc!==c0)?[qc,c0]:[c0];
+ for(let t=0;t<tries.length;t++){
+  const c=tries[t];
+  const hit=items.find(function(i){return String(i.barcode||'').trim()===c;})||items.find(function(i){return String(i.upc||'').trim()===c;});
+  if(hit)return hit;
+ }
+ return null;
 }
 function itemCodeWarnCheck(){
  const el=document.getElementById('barcode');
  const w=document.getElementById('itemCodeWarn');
  if(!el||!w)return;
  const v=el.value.trim();
- const bad=v!==''&&!/^\d{6}$/.test(v);
+ const bad=v!==''&&!(/^\d{5,7}$/.test(v)||/^[A-Za-z]\d{4,7}$/.test(v));
  w.style.display=bad?'block':'none';
- if(bad)w.textContent='⚠ Careful: Gordon item numbers are 6 numbers. A longer or shorter number may be the SUPPLIER number or the stripes barcode — the real one is in the yellow ITEM CODE box on the label. You can still save (some local items really do have shorter numbers).';
+ if(bad)w.textContent='⚠ Double-check this number against the label before you save. The item number sits beside ITEM CODE, ITEM NO or A# on the label — long numbers are usually the school account or the stripes barcode. You can still save: plenty of real item numbers are not 6 digits.';
 }
 function blCodeWarnCheck(){
  const el=document.getElementById('blCode');
  const w=document.getElementById('blCodeWarn');
  if(!el||!w)return;
- w.style.display=/^\d{6}$/.test(el.value.trim())?'none':'block';
+ const v=el.value.trim();
+ w.style.display=(v!==''&&!(/^\d{5,7}$/.test(v)||/^[A-Za-z]\d{4,7}$/.test(v)))?'block':'none';
 }
 function onScanSuccess(decodedText){
  const code=String(decodedText||'').trim();
@@ -753,7 +799,7 @@ function gordonSquash(s){ return String(s||'').toUpperCase().replace(/0/g,'O').r
 function gordonIsLabel(text,lines){ const sq=gordonSquash(text).replace(/[^A-Z]/g,''); if(sq.indexOf('GORDON')>=0||sq.indexOf('ORDONCHOI')>=0||sq.indexOf('ITEMCOD')>=0)return true; const packRe=/(\d+)\s*[xX\/]\s*(\d+)\b/; return lines.some(function(l){return packRe.test(l)&&/\b\d{5}\b\s*$/.test(l);}); }
 function gordonBadLine(l){ if(/\border\b|\bpo\b|account|deliver|route|ship|school|grocery|supplier|brand|batch|trip|sort|row|9018748/i.test(l))return true; const d=String(l).replace(/\D/g,''); return d.length===6&&d.indexOf('8212')===0&&String(l).trim().length<12; }
 function gordonItemLine(l){ const n=gordonSquash(l); if(n.replace(/[^A-Z]/g,'').indexOf('ITEMCOD')>=0)return true; return /ITEM\s+C[A-Z]{2}E\b/.test(n); }
-function gordonFixInfo(text,info){ const lines=gordonLabelLines(text); if(!gordonIsLabel(text,lines))return info; const out={code:info.code,description:info.description,packSize:info.packSize,packText:info.packText}; const numOn=function(l){ const m=String(l).match(/\b\d{5,7}\b/); return m?m[0]:''; }; const acct=function(s){ return !!s&&s.length>=5&&'901874800'.indexOf(s)>=0; }; const allNums=[]; lines.forEach(function(l){ if(gordonBadLine(l))return; const re=/\b\d{6}\b/g; let m; while((m=re.exec(l))){ if(acct(m[0]))continue; if(allNums.indexOf(m[0])<0)allNums.push(m[0]); } }); const supNums=[]; lines.forEach(function(l){ const up=l.toUpperCase(); const si=up.indexOf('SUPPLIER'); if(si<0)return; const seg=up.slice(si).split(/ITEM CODE|BRAND|ORDER|DELIVERY|ROUTE/)[0]; const sm=seg.match(/\b\d{4,8}\b/g)||[]; sm.forEach(function(d){ if(supNums.indexOf(d)<0)supNums.push(d); }); }); const poison=function(n){ return !!n&&supNums.indexOf(String(n))>=0; }; for(let pi=allNums.length-1;pi>=0;pi--){ if(poison(allNums[pi]))allNums.splice(pi,1); } let code=''; const ic=lines.findIndex(function(l){return gordonItemLine(l);}); if(ic>=0){ const anchorNum=function(l){ const str=String(l||''); const cut=str.toUpperCase().indexOf('SUPPLIER'); const t=cut>=0?str.slice(0,cut):str; const m=t.match(/\b\d{5,7}\b/); return m?m[0]:''; }; const neighbor=function(l){ if(!l||/supplier/i.test(l)||gordonBadLine(l))return ''; const nn=numOn(l); return poison(nn)?'':nn; }; const aNum=anchorNum(lines[ic]); code=(aNum&&!poison(aNum)?aNum:'')||neighbor(lines[ic+1])||neighbor(lines[ic-1]); } if(code&&code.length===5){ const ext=allNums.filter(function(c){return c.indexOf(code)===0;}); if(ext.length===1)code=ext[0]; } let forceBlank=false; if(code&&code.length>6){ if(allNums.length===1)code=allNums[0]; else if(allNums.length>1&&allNums.indexOf(code)<0){ code=''; forceBlank=true; } } if(forceBlank){ out.code=''; out.codeWarn=true; } else if(code){ out.code=code; out.codeWarn=(code.length!==6); } else if(allNums.length===1){ out.code=allNums[0]; out.codeWarn=false; } else if(allNums.length===0){ const bc=String(info.code||''); const onBad=bc&&(acct(bc)||poison(bc)||lines.some(function(l){return l.indexOf(bc)>=0&&gordonBadLine(l);})); if(!bc||onBad){ out.code=''; out.codeWarn=true; } else { out.code=bc; out.codeWarn=(bc.length!==6); } } else { const bc=String(info.code||''); if(bc&&!acct(bc)&&allNums.indexOf(bc)>=0){ out.code=bc; out.codeWarn=false; } else { out.code=''; out.codeWarn=true; } }  const zexp={PPR:'PAPER',FD:'FOOD',CHK:'CHECK',RD:'RED',CO:'',GFS:'',GORDON:'',CHOICE:'',ROW:'',SORT:'',BIN:''}; const zpack=/(\d+)\s*[xX\/]\s*(\d+)\s*(OZ|OUNCE|LB|LBS|GAL|CT|PK|EA|EACH)?\b/i;
+function gordonFixInfo(text,info){ const lines=gordonLabelLines(text); if(!gordonIsLabel(text,lines))return info; const out={code:info.code,description:info.description,packSize:info.packSize,packText:info.packText}; const fine=function(c){ c=String(c||'').trim(); return /^\d{6,7}$/.test(c)||/^[A-Za-z]\d{4,7}$/.test(c); }; const numOn=function(l){ const m=String(l).match(/\b\d{5,7}\b/); return m?m[0]:''; }; const acct=function(s){ return !!s&&s.length>=5&&'901874800'.indexOf(s)>=0; }; const allNums=[]; lines.forEach(function(l){ if(gordonBadLine(l))return; const re=/\b\d{6}\b/g; let m; while((m=re.exec(l))){ if(acct(m[0]))continue; if(allNums.indexOf(m[0])<0)allNums.push(m[0]); } }); const supNums=[]; lines.forEach(function(l){ const up=l.toUpperCase(); const si=up.indexOf('SUPPLIER'); if(si<0)return; const seg=up.slice(si).split(/ITEM CODE|BRAND|ORDER|DELIVERY|ROUTE/)[0]; const sm=seg.match(/\b\d{4,8}\b/g)||[]; sm.forEach(function(d){ if(supNums.indexOf(d)<0)supNums.push(d); }); }); const poison=function(n){ return !!n&&supNums.indexOf(String(n))>=0; }; for(let pi=allNums.length-1;pi>=0;pi--){ if(poison(allNums[pi]))allNums.splice(pi,1); } let code=''; const ic=lines.findIndex(function(l){return gordonItemLine(l);}); if(ic>=0){ const anchorNum=function(l){ const str=String(l||''); const cut=str.toUpperCase().indexOf('SUPPLIER'); const t=cut>=0?str.slice(0,cut):str; const m=t.match(/\b\d{5,7}\b/); return m?m[0]:''; }; const neighbor=function(l){ if(!l||/supplier/i.test(l)||gordonBadLine(l))return ''; const nn=numOn(l); return poison(nn)?'':nn; }; const aNum=anchorNum(lines[ic]); code=(aNum&&!poison(aNum)?aNum:'')||neighbor(lines[ic+1])||neighbor(lines[ic-1]); } if(code&&code.length===5){ const ext=allNums.filter(function(c){return c.indexOf(code)===0;}); if(ext.length===1)code=ext[0]; } let forceBlank=false; if(code&&code.length>6){ if(allNums.length===1)code=allNums[0]; else if(allNums.length>1&&allNums.indexOf(code)<0){ code=''; forceBlank=true; } } if(forceBlank){ out.code=''; out.codeWarn=true; } else if(code){ out.code=code; out.codeWarn=!fine(code); } else if(allNums.length===1){ out.code=allNums[0]; out.codeWarn=false; } else if(allNums.length===0){ const bc=String(info.code||''); const onBad=bc&&(acct(bc)||poison(bc)||lines.some(function(l){return l.indexOf(bc)>=0&&gordonBadLine(l);})); if(!bc||onBad){ out.code=''; out.codeWarn=true; } else { out.code=bc; out.codeWarn=!fine(bc); } } else { const bc=String(info.code||''); if(bc&&!acct(bc)&&allNums.indexOf(bc)>=0){ out.code=bc; out.codeWarn=false; } else { out.code=''; out.codeWarn=true; } }  const zexp={PPR:'PAPER',FD:'FOOD',CHK:'CHECK',RD:'RED',CO:'',GFS:'',GORDON:'',CHOICE:'',ROW:'',SORT:'',BIN:''}; const zpack=/(\d+)\s*[xX\/]\s*(\d+)\s*(OZ|OUNCE|LB|LBS|GAL|CT|PK|EA|EACH)?\b/i;
 const cleanZoneName=function(raw){ if(!raw)return ''; let nm=String(raw).replace(zpack,' ').replace(/\b\d{5,14}\b/g,' ').replace(/^(CS|CASE)\b\.?\s*/i,' '); nm=nm.split(' ').map(function(w){ if(!/[A-Za-z0-9]/.test(w))return ''; const u=w.toUpperCase().replace(/[^A-Z]/g,''); if(Object.prototype.hasOwnProperty.call(zexp,u))return zexp[u]; const sz=w.match(/^(\d+)Z$/i); if(sz)return sz[1]+' OZ'; const lb=w.match(/^(\d+)#$/); if(lb)return lb[1]+' LB'; if(/^(?=.*\d)[A-Z0-9]{7,}$/i.test(w))return ''; return w; }).filter(Boolean).join(' ').replace(/\s{2,}/g,' ').trim(); const good=nm.split(' ').filter(function(w){return w.replace(/[^A-Za-z]/g,'').length>=3;}).length; return good>=2?nm:''; };
  let zoneName=''; { const ic2=lines.findIndex(function(l){return gordonItemLine(l);}); const zone=(ic2>0?lines.slice(0,ic2):lines.slice(0,4)).filter(function(l){return !gordonBadLine(l);}); const bi=zone.findIndex(function(l){ const s=gordonSquash(l).replace(/[^A-Z]/g,''); return s.indexOf('GORDON')>=0||s.indexOf('ORDONCHOI')>=0; }); let cand=''; if(bi>=0){ cand=zone[bi+1]||''; const cont=zone[bi+2]||''; const c1=cleanZoneName(cand), c2=cleanZoneName(cont); zoneName=(c1&&c2&&c1!==c2)?(c1+' '+c2):(c1||c2); if(!c1&&c2){ const c3raw=zone[bi+3]||''; const c3=/keep frozen|fully cooked|refrigerat/i.test(c3raw)?'':cleanZoneName(c3raw); if(c3&&c3!==c2)zoneName=c2+' '+c3; } } if(!zoneName){ for(let zi=0;zi<zone.length;zi++){ if(zpack.test(zone[zi])){ const c1=cleanZoneName(zone[zi]); if(c1){ const c2=cleanZoneName(zone[zi+1]||''); zoneName=(c2&&c2!==c1)?(c1+' '+c2):c1; } else { let n1='',n2=''; for(let zj=zi+1;zj<zone.length&&zj<=zi+3;zj++){ if(/keep frozen|fully cooked|refrigerat/i.test(zone[zj]))continue; const cn=cleanZoneName(zone[zj]); if(!cn)continue; if(!n1)n1=cn; else { n2=cn; break; } } if(n1)zoneName=n2?(n1+' '+n2):n1; } break; } } } }
  const packRe2=/(\d+)\s*[xX\/]\s*(\d+)\s*(OZ|OUNCE|LB|LBS|GAL|CT|PK|EA|EACH)?\b/i; let dl=''; lines.forEach(function(l){ if(packRe2.test(l)&&l.length>dl.length)dl=l; }); if(dl){ let nm=dl.replace(packRe2,' ').replace(/\b\d{5,14}\b/g,' ').replace(/^(CS|CASE)\b\.?\s*/i,' '); const exp={PPR:'PAPER',FD:'FOOD',CHK:'CHECK',RD:'RED',CO:'',GFS:'',GORDON:'',CHOICE:'',ROW:'',SORT:'',BIN:''}; nm=nm.split(' ').map(function(w){ if(!/[A-Za-z0-9]/.test(w))return ''; const u=w.toUpperCase().replace(/[^A-Z]/g,''); if(Object.prototype.hasOwnProperty.call(exp,u))return exp[u]; const sz=w.match(/^(\d+)Z$/i); if(sz)return sz[1]+' OZ'; if(/^(?=.*\d)[A-Z0-9]{7,}$/i.test(w))return ''; return w; }).filter(Boolean).join(' ').replace(/\s{2,}/g,' ').trim(); const good=nm.split(' ').filter(function(w){return w.replace(/[^A-Za-z]/g,'').length>=3;}).length; if(zoneName)out.description=zoneName; else if(good>=2)out.description=nm; } return out; }
@@ -849,9 +895,9 @@ async function visionLabelInfo(file){
   if(!code&&!desc&&!pack)return null;
   const unsure=(v&&Array.isArray(v.unsure))?v.unsure:[];
   const bc=String((v&&v.barcode)||'').replace(/\D/g,'');
-  return {code:code,description:desc,packSize:pack,packText:String((v&&v.packText)||'').trim(),reader:'vision',upc:(bc.length>=10&&bc.length<=14&&bc!==code)?bc:'',codeWarn:(code.length!==6||unsure.indexOf('code')>=0)};
+  return {code:code,description:desc,packSize:pack,packText:String((v&&v.packText)||'').trim(),reader:'vision',upc:(bc.length>=10&&bc.length<=14&&bc!==code)?bc:'',codeWarn:(codeLooksRisky(code)||unsure.indexOf('code')>=0)};
 }
-async function readBoxLabel(event){  const file=event.target.files&&event.target.files[0];  if(!file)return;  const status=document.getElementById('boxLabelStatus');  const box=document.getElementById('boxLabelResult');  box.innerHTML='';  let capNote=false;  status.textContent='Reading your label with the new reader…';  try{   const vi=await visionLabelInfo(file);   if(vi){ renderBoxLabelResult(vi); status.textContent='Label read with the new reader — check the fields, fix anything wrong, then save.'; if(!vi.description&&vi.code)status.textContent='The new reader got the item code but could not read the name - type the name in, then save.'; event.target.value=''; return; }  }catch(ve){ if(ve&&ve.cap)capNote=true; }  try{   const r=await ocrFile(file,1,1,status);   let info=extractBoxLabelInfo(r.text); if(!labelNameSane(info.description)||(!info.code&&!info.packSize)){status.textContent='That read looks incomplete - trying the photo turned around...'; const rf=await rotateImage180(file); const r2=await ocrFile(rf,1,1,status); const info2=extractBoxLabelInfo(r2.text); info=mergeLabelInfo(info,info2); if(!labelNameSane(info.description)||(!info.code&&!info.packSize)){status.textContent='Still thin - trying the photo sideways...'; const sf=await rotateImage90(file); const r3=await ocrFile(sf,1,1,status); info=mergeLabelInfo(info,extractBoxLabelInfo(r3.text));}}   renderBoxLabelResult(info);   status.textContent=(info.code||info.description)?'Label read with the basic reader — check the fields, fix anything wrong, then save.':'Could not read the label clearly. Try a closer, straight-on photo with the label filling the picture.';  if(!info.description&&info.code)status.textContent='I read the item code but could not read the name - type the name in, then save.'; if(capNote&&(info.code||info.description))status.textContent+=' (The new reader has done its reads for today, so the basic reader read this one.)'; }catch(e){status.textContent='Could not read the label: '+((e&&e.message)?e.message:e);}  event.target.value=''; } function renderBoxLabelResult(info){  const box=document.getElementById('boxLabelResult');  let blKnownUpc=String((info&&info.upc)||'');  if(!blKnownUpc&&info&&info.code){ try{ const km=(typeof itemsWithCode==='function')?itemsWithCode(info.code):[]; if(km.length&&km[0].upc)blKnownUpc=String(km[0].upc); }catch(e){} }  box.innerHTML='<div class="card" style="margin-top:10px"><b>Label details</b><p class="small">Check and fix anything the camera misread, then save.</p>'+boxLabelMatchNote(info)+'<label>Item code</label><input id="blCode" value="'+esc(info.code)+'" oninput="blCodeWarnCheck()">'+'<div id="blCodeWarn" class="small" style="display:'+((info.codeWarn||!/^\d{6}$/.test(String(info.code||'')))?'block':'none')+';color:#b02a37;font-weight:bold">⚠ Check this number before you save: Gordon item numbers are 6 numbers, and this one is not — it may be the SUPPLIER number or the stripes barcode. The real one is in the yellow ITEM CODE box on the label. You can still save (some local items really do have shorter numbers).</div>'  +'<label>Item name</label><input id="blName" value="'+esc(info.description)+'">'  +'<label>Barcode (the stripes number — optional)</label><input id="blUpc" inputmode="numeric" value="'+esc(blKnownUpc)+'" placeholder="The number printed under the stripes — saved with this item">'  +'<label>Pack size (items per case)</label><input id="blPack" type="number" min="0" step="1" value="'+(info.packSize||'')+'" placeholder="Example: 100">'  +'<label>Unit</label><select id="blUnit"><option>cases</option><option>crates</option><option>boxes</option><option>cans</option><option>bags</option><option>packs</option><option>each</option><option>pounds</option><option>gallons</option></select>'  +'<label>Quantity on hand</label><input id="blQty" type="number" min="0" step="0.01" value="1">'  +'<label>Category</label><select id="LocationCategory"><option>Food</option><option>Paper</option><option>Cleaning</option><option>Beverage</option><option>Supplies</option><option>Other</option></select>'  +'<label>Location</label><select id="blLocation" onchange="boxLocationChanged(this)">'+locationOptionsHTML(localStorage.getItem('ibBlLocation')||'')+'</select>'  +'<div class="row" style="margin-top:10px;flex-wrap:wrap"><button type="button" class="primary" onclick="saveBoxLabelItem()">💾 Save to Inventory</button></div></div>'; } function saveBoxLabelItem(){  const name=document.getElementById('blName').value.trim();  if(!name)return alert('Please enter an item name.');  const code=document.getElementById('blCode').value.trim();  const blUpcEl=document.getElementById('blUpc');  const blUpc=blUpcEl?blUpcEl.value.trim():'';  const addQty=Number(document.getElementById('blQty').value||0);  const blLoc=document.getElementById('blLocation').value.trim();  localStorage.setItem('ibBlLocation',blLoc);  let match=null;  if(code){match=items.find(function(x){return x.barcode&&String(x.barcode).trim()===code;});}  if(!match){const nl=name.toLowerCase();  match=items.find(function(x){return x.name&&x.name.trim().toLowerCase()===nl;});}  let matched=false;  let locClash='';  if(match){const savedLoc=match.location?String(match.location).trim():'';  if(savedLoc&&blLoc&&savedLoc.toLowerCase()!==blLoc.toLowerCase())locClash=savedLoc;  match.qty=Number(match.qty||0)+addQty;  if(!match.packSize)match.packSize=Number(document.getElementById('blPack').value||0);  if(!match.location&&blLoc)match.location=blLoc;  if(blUpc&&!match.upc)match.upc=blUpc;  matched=true;}else{items.push({id:Date.now(),name:name,cat:document.getElementById('LocationCategory').value,location:blLoc,unit:document.getElementById('blUnit').value,packSize:Number(document.getElementById('blPack').value||0),qty:addQty,min:0,orderQty:0,barcode:code,upc:blUpc,supplierId:''});}  persist();  document.getElementById('boxLabelResult').innerHTML='';  document.getElementById('boxLabelStatus').textContent=(matched?('Matched: '+match.name+' — added '+addQty+', now '+match.qty+' ✓ Ready for the next label.'):('Saved: '+name+' ✓ Ready for the next label.'))+(locClash?(' ⚠ Careful: '+match.name+' is marked as being in '+locClash+', but you just scanned it as '+blLoc+'.'):'');  noteSessionScan(code); const fl=document.getElementById('fastLoad');  if(fl&&fl.checked){fastLoadNext();} } function show(id){
+async function readBoxLabel(event){  const file=event.target.files&&event.target.files[0];  if(!file)return;  const status=document.getElementById('boxLabelStatus');  const box=document.getElementById('boxLabelResult');  box.innerHTML='';  let capNote=false;  status.textContent='Reading your label with the new reader…';  try{   const vi=await visionLabelInfo(file);   if(vi){ const qc=await qrCodeFromPhoto(file); if(qc&&qc!==vi.code){vi.code=qc; vi.codeWarn=false; vi.qrUsed=true;} renderBoxLabelResult(vi); status.textContent='Label read with the new reader — check the fields, fix anything wrong, then save.'; if(!vi.description&&vi.code)status.textContent='The new reader got the item code but could not read the name - type the name in, then save.'; if(vi.qrUsed)status.textContent+=' The label QR code gave the item number.'; event.target.value=''; return; }  }catch(ve){ if(ve&&ve.cap)capNote=true; }  try{   const r=await ocrFile(file,1,1,status);   let info=extractBoxLabelInfo(r.text); if(!labelNameSane(info.description)||(!info.code&&!info.packSize)){status.textContent='That read looks incomplete - trying the photo turned around...'; const rf=await rotateImage180(file); const r2=await ocrFile(rf,1,1,status); const info2=extractBoxLabelInfo(r2.text); info=mergeLabelInfo(info,info2); if(!labelNameSane(info.description)||(!info.code&&!info.packSize)){status.textContent='Still thin - trying the photo sideways...'; const sf=await rotateImage90(file); const r3=await ocrFile(sf,1,1,status); info=mergeLabelInfo(info,extractBoxLabelInfo(r3.text));}}   const qc3=await qrCodeFromPhoto(file); if(qc3&&qc3!==info.code){info.code=qc3; info.codeWarn=false; info.qrUsed=true;} renderBoxLabelResult(info);   status.textContent=(info.code||info.description)?'Label read with the basic reader — check the fields, fix anything wrong, then save.':'Could not read the label clearly. Try a closer, straight-on photo with the label filling the picture.';  if(!info.description&&info.code)status.textContent='I read the item code but could not read the name - type the name in, then save.'; if(info.qrUsed)status.textContent+=' The label QR code gave the item number.'; if(capNote&&(info.code||info.description))status.textContent+=' (The new reader has done its reads for today, so the basic reader read this one.)'; }catch(e){status.textContent='Could not read the label: '+((e&&e.message)?e.message:e);}  event.target.value=''; } function renderBoxLabelResult(info){  const box=document.getElementById('boxLabelResult');  let blKnownUpc=String((info&&info.upc)||'');  if(!blKnownUpc&&info&&info.code){ try{ const km=(typeof itemsWithCode==='function')?itemsWithCode(info.code):[]; if(km.length&&km[0].upc)blKnownUpc=String(km[0].upc); }catch(e){} }  box.innerHTML='<div class="card" style="margin-top:10px"><b>Label details</b><p class="small">Check and fix anything the camera misread, then save.</p>'+boxLabelMatchNote(info)+'<label>Item code</label><input id="blCode" value="'+esc(info.code)+'" oninput="blCodeWarnCheck()">'+'<div id="blCodeWarn" class="small" style="display:'+((info.codeWarn||codeLooksRisky(info.code))?'block':'none')+';color:#8a6d00">⚠ Double-check this number against the label before you save. The item number sits beside ITEM CODE, ITEM NO or A# on the label — long numbers are usually the school account or the stripes barcode. You can still save: plenty of real item numbers are not 6 digits.</div>'  +'<label>Item name</label><input id="blName" value="'+esc(info.description)+'">'  +'<label>Barcode (the stripes number — optional)</label><input id="blUpc" inputmode="numeric" value="'+esc(blKnownUpc)+'" placeholder="The number printed under the stripes — saved with this item">'  +'<label>Pack size (items per case)</label><input id="blPack" type="number" min="0" step="1" value="'+(info.packSize||'')+'" placeholder="Example: 100">'  +'<label>Unit</label><select id="blUnit"><option>cases</option><option>crates</option><option>boxes</option><option>cans</option><option>bags</option><option>packs</option><option>each</option><option>pounds</option><option>gallons</option></select>'  +'<label>Quantity on hand</label><input id="blQty" type="number" min="0" step="0.01" value="1">'  +'<label>Category</label><select id="LocationCategory"><option>Food</option><option>Paper</option><option>Cleaning</option><option>Beverage</option><option>Supplies</option><option>Other</option></select>'  +'<label>Location</label><select id="blLocation" onchange="boxLocationChanged(this)">'+locationOptionsHTML(localStorage.getItem('ibBlLocation')||'')+'</select>'  +'<div class="row" style="margin-top:10px;flex-wrap:wrap"><button type="button" class="primary" onclick="saveBoxLabelItem()">💾 Save to Inventory</button></div></div>'; } function saveBoxLabelItem(){  const name=document.getElementById('blName').value.trim();  if(!name)return alert('Please enter an item name.');  const code=document.getElementById('blCode').value.trim();  const blUpcEl=document.getElementById('blUpc');  const blUpc=blUpcEl?blUpcEl.value.trim():'';  const addQty=Number(document.getElementById('blQty').value||0);  const blLoc=document.getElementById('blLocation').value.trim();  localStorage.setItem('ibBlLocation',blLoc);  let match=null;  if(code){match=items.find(function(x){return x.barcode&&String(x.barcode).trim()===code;});}  if(!match){const nl=name.toLowerCase();  match=items.find(function(x){return x.name&&x.name.trim().toLowerCase()===nl;});}  let matched=false;  let locClash='';  if(match){const savedLoc=match.location?String(match.location).trim():'';  if(savedLoc&&blLoc&&savedLoc.toLowerCase()!==blLoc.toLowerCase())locClash=savedLoc;  match.qty=Number(match.qty||0)+addQty;  if(!match.packSize)match.packSize=Number(document.getElementById('blPack').value||0);  if(!match.location&&blLoc)match.location=blLoc;  if(blUpc&&!match.upc)match.upc=blUpc;  matched=true;}else{items.push({id:Date.now(),name:name,cat:document.getElementById('LocationCategory').value,location:blLoc,unit:document.getElementById('blUnit').value,packSize:Number(document.getElementById('blPack').value||0),qty:addQty,min:0,orderQty:0,barcode:code,upc:blUpc,supplierId:''});}  persist();  document.getElementById('boxLabelResult').innerHTML='';  document.getElementById('boxLabelStatus').textContent=(matched?('Matched: '+match.name+' — added '+addQty+', now '+match.qty+' ✓ Ready for the next label.'):('Saved: '+name+' ✓ Ready for the next label.'))+(locClash?(' ⚠ Careful: '+match.name+' is marked as being in '+locClash+', but you just scanned it as '+blLoc+'.'):'');  noteSessionScan(code); const fl=document.getElementById('fastLoad');  if(fl&&fl.checked){fastLoadNext();} } function show(id){
   const savedScroll = window.scrollY;
  if(id!=='add') stopScanner();
  ['add','inventory','low','order','monthly','quick','history','suppliers','receive','boxlabel','eom'].forEach(x=>{
@@ -1940,7 +1986,7 @@ async function fastScanPhoto(file,statusEl){
   if(statusEl)statusEl.textContent='Reading with the new reader…';
   try{
     const vi=await visionLabelInfo(file);
-    if(vi)return vi;
+    if(vi){ const qc=await qrCodeFromPhoto(file); if(qc&&qc!==vi.code){vi.code=qc;vi.codeWarn=false;vi.qrUsed=true;} return vi; }
   }catch(ve){ if(ve&&ve.cap)capHit=true; }
   const r=await ocrFile(file,1,1,statusEl);
   let info=extractBoxLabelInfo(r.text);
@@ -1950,6 +1996,8 @@ async function fastScanPhoto(file,statusEl){
     const r2=await ocrFile(rf,1,1,statusEl);
     info=mergeLabelInfo(info,extractBoxLabelInfo(r2.text));
   }
+  const qc4=await qrCodeFromPhoto(file);
+  if(qc4&&qc4!==info.code){info.code=qc4;info.codeWarn=false;info.qrUsed=true;}
   info.reader='basic';
   if(capHit)info.capHit=true;
   return info;
@@ -1963,7 +2011,7 @@ function scanSessionAdd(info){
   if(!code&&!String(info.description||'').trim()&&!info.packSize&&!String(info.packText||'').trim())return;
   const ex=scanSession.entries.find(function(e){return code&&e.code===code;});
   if(ex){ ex.count++; if(info.codeWarn===false)ex.warn=false; if(!ex.name&&info.description)ex.name=info.description; if(!ex.packSize&&info.packSize)ex.packSize=info.packSize; }
-  else scanSession.entries.push({code:code,name:info.description||'',packSize:info.packSize||0,packText:info.packText||'',count:1,warn:!!info.codeWarn||code===''||code.length!==6});
+  else scanSession.entries.push({code:code,name:info.description||'',packSize:info.packSize||0,packText:info.packText||'',count:1,warn:!!info.codeWarn||code===''||!/^\d{6}$/.test(code)});
 }
 function scanEntriesHTML(){
   const s=scanSession; if(!s||!s.entries.length)return '<p class="small">Nothing scanned yet. Point the camera at each case label — every scan lands here.</p>';
@@ -2571,6 +2619,7 @@ function extractReportRows(text){
     [/\bFREEZER\b/,'Freezer'],[/\bCOOLER\b/,'Cooler'],[/\bSTORAGE\b/,'Storage'],[/\bPANTRY\b/,'Pantry']
   ];
   var lines=cleanOCRLines(text);
+  var fine=function(c){ c=String(c||'').trim(); return /^\d{6,7}$/.test(c)||/^[A-Za-z]\d{4,7}$/.test(c); };
   var joined=lines.join('\n');
   var sectionsSeen=0;
   lines.forEach(function(l){ var up=l.toUpperCase(); for(var i=0;i<SECTIONS.length;i++){ if(SECTIONS[i][0].test(up)){ sectionsSeen++; break; } } });
@@ -2666,7 +2715,7 @@ function extractReportRows(text){
       location:seg.location||'',
       _hd:(seg.hdrDist==null?Infinity:seg.hdrDist),
       cat:(/laundry/i.test(seg.location||'')?'Cleaning':(/utensil/i.test(seg.location||'')?'Supplies':'Food')),
-      codeWarn:!/^\d{6}$/.test(seg.code),
+      codeWarn:!fine(seg.code),
       raw:segText.slice(0,200)
     });
   });

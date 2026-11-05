@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inventory Buddy — V28.19</title>
+<title>Inventory Buddy — V28.20</title>
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -347,7 +347,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 28.19</div>
+<div class="card small no-print">Version 28.20</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -889,6 +889,22 @@ async function visionRead(fileOrBlob,kind){
 function visionUnit(u){ const s=String(u||'').trim().toLowerCase(); if(!s)return 'cases'; if(s==='case'||s==='cs'||s==='cases')return 'cases'; if(s==='bag'||s==='bags')return 'bags'; if(s==='box'||s==='boxes')return 'boxes'; if(s==='pack'||s==='packs'||s==='package')return 'packs'; if(s==='crate'||s==='crates')return 'crates'; if(s==='can'||s==='cans')return 'cans'; if(s==='each'||s==='ea')return 'each'; return s; }
 function visionRowsToReview(rows){ return (Array.isArray(rows)?rows:[]).map(function(r){ const d=String((r&&r.description)||'').trim(); return {product:String((r&&r.product)||'').trim(),description:d,name:d,qty:(r&&r.qty!==null&&r.qty!==undefined)?String(r.qty).trim():'',unit:visionUnit(r&&r.unit)}; }).filter(function(r){ return r.product||r.description; }); }
 function visionRowsToReport(rows){ return (Array.isArray(rows)?rows:[]).map(function(r){ return {code:String((r&&r.product)||'').trim(),description:String((r&&r.description)||'').trim(),packSize:0,packText:'',qty:'',unit:visionUnit(r&&r.unit),location:'',cat:'Food'}; }).filter(function(r){ return r.code||r.description; }); }
+// V28.20: where would this row live? Supplier papers print no location —
+// the only hint sits inside the product name (Frozen / Refrigerated /
+// Shelf-Stable). Suggest one of the user's OWN location names carrying
+// that word; no matching name of theirs, no suggestion. Pure on purpose:
+// the receive review, and the tests, call it exactly like this.
+function suggestLocationForRow(description,known){
+ const d=String(description||'');
+ let want='';
+ if(/shelf[-\s]?stable/i.test(d))want='storage';
+ else if(/\bfrozen\b|\bIQF\b/i.test(d))want='freezer';
+ else if(/\brefrigerated\b/i.test(d))want='cooler';
+ if(!want)return '';
+ const names=Array.isArray(known)?known:[];
+ for(let k=0;k<names.length;k++){ const n=String(names[k]||''); if(n&&n.toLowerCase().indexOf(want)>=0)return n; }
+ return '';
+}
 async function visionLabelInfo(file){
   const v=await visionRead(file,'label');
   const code=String((v&&v.code)||'').trim(), desc=String((v&&v.description)||'').trim(), pack=Number((v&&v.packSize)||0)||0;
@@ -1726,6 +1742,7 @@ function confirmManualReceiveItems(){
   }
 }
 
+function recvLocChanged(sel){ if(!sel)return; if(sel.value==='__add_location__')handleLocationChoice(sel,''); }
 function renderReceiveResults(text,rows){
  const results=document.getElementById('receiveResults');
  let html='<div class="card" style="margin:0 0 10px"><b>Review Before Updating</b><p class="small">Check every item, received quantity, inventory unit, and pack size. Nothing changes until you confirm.</p></div>';
@@ -1749,6 +1766,8 @@ function renderReceiveResults(text,rows){
        html+='<label>Product / barcode</label><input id="newProd'+idx+'" value="'+esc(r.product)+'">';
      }
      html+='<label>Received quantity <span class="small">(from receipt'+(r.qtySource?' • '+esc(r.qtySource):'')+')</span></label><input id="recvQty'+idx+'" type="number" min="0" step="0.01" value="'+esc(r.qty||'')+'">';
+     const recvLocPick=(existing&&existing.item&&existing.item.location)?String(existing.item.location):suggestLocationForRow(r.description,allLocationNames());
+     html+='<label>Location <span class="small">(optional — where this is stored)</span></label><select id="recvLoc'+idx+'" onchange="recvLocChanged(this)">'+reportLocOptionsHTML(recvLocPick)+'</select>';
      html+='<div style="margin-top:10px;padding:10px;border:1px solid #66cd9d;background:#eafbf0;border-radius:12px"><b>📦 Inventory Conversion</b><div class="small">This tells Inventory Buddy how the receipt quantity should be added to your inventory. The package size belongs to this specific item.</div>';
      html+='<label>Receipt unit</label><select id="recvReceiptUnit'+idx+'">'+unitOptions()+'</select>';
      html+='<label>Inventory update unit</label><select id="recvUnit'+idx+'">'+unitOptions()+'</select>';
@@ -1777,6 +1796,7 @@ function renderReceiveResults(text,rows){
      if(!chosen) return;
      if(u) u.value=chosen.unit||r.unit||'units';
      if(p) p.value=(Number(chosen.packSize)>0?chosen.packSize:inferPackSize(r));
+     const locSel=document.getElementById('recvLoc'+idx); if(locSel&&chosen.location){ locSel.innerHTML=reportLocOptionsHTML(chosen.location); locSel.value=chosen.location; }
      refresh();
    };
    if(u) u.value=existing?.item?.unit||r.unit||'units';
@@ -1788,6 +1808,7 @@ function renderReceiveResults(text,rows){
        else {
          if(u) u.value=r.unit||'units';
          if(p) p.value=inferPackSize(r);
+         const locSel2=document.getElementById('recvLoc'+idx); if(locSel2){ locSel2.innerHTML=reportLocOptionsHTML(suggestLocationForRow(r.description,allLocationNames())); }
          refresh();
        }
      });
@@ -1837,9 +1858,11 @@ function confirmAllReceiveRows(count){
    if(finalQty===null||!Number.isFinite(finalQty)||finalQty<0){skipped++;problems.push('Row '+(n+1)+': choose matching units or enter Units per case for units/cases conversion.');continue;}
    const mapped=document.getElementById('recvMap'+n)?.value||'';
    const id=document.getElementById('recvId'+n)?.value||mapped;
+   const locRaw=document.getElementById('recvLoc'+n)?.value||''; const locClean=locRaw==='__add_location__'?'':locRaw;
    if(id){
      const item=items.find(i=>String(i.id)===String(id));
      if(item){
+       if(locClean&&!item.location) item.location=locClean;
        if(String(item.unit||'')!==String(targetUnit||'')) item.unit=targetUnit;
        if((targetUnit==='cases'||targetUnit==='crates'||targetUnit==='boxes') && pack>0) item.packSize=pack;
        item.qty=(Number(item.qty)||0)+finalQty; changed++; continue;
@@ -1848,7 +1871,7 @@ function confirmAllReceiveRows(count){
    const name=document.getElementById('newName'+n)?.value.trim();
    const prod=document.getElementById('newProd'+n)?.value.trim();
    if(name){
-     items.push({id:Date.now()+Math.random(),name,cat:'Other',Category:'Other',unit:targetUnit,packSize:targetUnit==='cases'||targetUnit==='crates'||targetUnit==='boxes'?pack:0,qty:finalQty,min:0,orderQty:0,barcode:prod,supplierId:document.getElementById('receiveSupplier')?.value||''});
+     items.push({id:Date.now()+Math.random(),name,location:locClean,cat:'Other',Category:'Other',unit:targetUnit,packSize:targetUnit==='cases'||targetUnit==='crates'||targetUnit==='boxes'?pack:0,qty:finalQty,min:0,orderQty:0,barcode:prod,supplierId:document.getElementById('receiveSupplier')?.value||''});
      added++;
    }else skipped++;
  }

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inventory Buddy — V28.21</title>
+<title>Inventory Buddy — V28.22</title>
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -131,40 +131,35 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
   <p class="small"><b>1) Load your last end-of-month count first.</b> That count is already done — Buddy turns it into your starting list. At a computer works best: use <b>Box Label → Load from a count report</b> and pick the report file or photos of the pages.<br>
   <b>2) Walk your shelves with End of Month count</b> and scan each box — Buddy updates the counts on the list it is already holding.<br>
   <b>3) Done — you are ready.</b> No counting to get started: your last count already did that work. When month-end comes, this list is your head start — that is where the big time-saver is.</p>
-  <button type="button" class="primary" onclick="show('boxlabel')">📦 Start at Box Label — count report &amp; First Load</button>
+  <button type="button" class="primary" onclick="showAndGo('boxlabel')">📦 Start at Box Label — count report &amp; First Load</button>
   <p class="small" style="margin-top:6px">The same steps live in the <b>📖 How To</b> area right below, any time you need them.</p>
 </div>
 
 <div class="section-title no-print">📊 Dashboard</div>
 <div class="dashboard no-print">
-  <div class="stat" role="button" tabindex="0" onclick="show('inventory')"><div class="num" id="statItems">0</div><div class="label">📦 Total Items</div></div>
-  <div class="stat" role="button" tabindex="0" onclick="show('low')"><div class="num" id="statLow">0</div><div class="label">⚠️ Low Stock</div></div>
-  <div class="stat" role="button" tabindex="0" onclick="show('order')"><div class="num" id="statOrder">0</div><div class="label">📝 To Order</div></div>
-  <div class="stat" role="button" tabindex="0" onclick="show('suppliers')"><div class="num" id="statSuppliers">0</div><div class="label">🏢 Suppliers</div></div>
+  <div class="stat" role="button" tabindex="0" onclick="showAndGo('inventory')"><div class="num" id="statItems">0</div><div class="label">📦 Total Items</div></div>
+  <div class="stat" role="button" tabindex="0" onclick="showAndGo('low')"><div class="num" id="statLow">0</div><div class="label">⚠️ Low Stock</div></div>
+  <div class="stat" role="button" tabindex="0" onclick="showAndGo('order')"><div class="num" id="statOrder">0</div><div class="label">📝 To Order</div></div>
 </div>
 <div class="doors no-print">
-  <button type="button" onclick="show('boxlabel')">📦 Scan In<small>Box Label • Bulk Scan • First Load • Add by hand</small></button>
-  <button type="button" onclick="show('inventory')">📋 My Inventory<small>Your list • Scan to Use • Use Items</small></button>
-  <button type="button" onclick="show('quick')">🧮 Count<small>Quick Count • Monthly • End of Month</small></button>
-  <button type="button" onclick="show('order')">🧾 Orders<small>Order List • Receive • History</small></button>
+  <button type="button" onclick="showAndGo('boxlabel')">📦 Scan In<small>Box Label • Bulk Scan • First Load • Add by hand</small></button>
+  <button type="button" onclick="showAndGo('inventory')">📋 My Inventory<small>Your list • Scan to Use • Use Items</small></button>
+  <button type="button" onclick="showAndGo('quick')">🧮 Count<small>Quick Count • Monthly • End of Month</small></button>
+  <button type="button" onclick="showAndGo('order')">🧾 Orders<small>Order List • Receive • History</small></button>
 </div>
 <div class="no-print" style="margin-top:10px">
   <button type="button" class="secondary" style="width:100%" onclick="document.getElementById('moreNav').classList.toggle('hidden')">⋯ More</button>
   <div id="moreNav" class="grid nav hidden" style="margin-top:10px">
-    <button type="button" onclick="show('suppliers')">🏢 Suppliers</button>
-    <button type="button" onclick="show('low')">⚠️ Low Stock</button>
-    <button type="button" onclick="show('monthly')">📅 Monthly Inventory</button>
-    <button type="button" onclick="show('eom')">🗓️ End of Month</button>
-    <button type="button" onclick="show('receive')">📸 Receive Order</button>
-    <button type="button" onclick="show('history')">📋 Order History</button>
+    <button type="button" onclick="showAndGo('suppliers')">🏢 Suppliers</button>
+    <button type="button" onclick="showAndGo('low')">⚠️ Low Stock</button>
     <button type="button" onclick="backup()">⬇️ Export Backup</button>
     <button type="button" onclick="toggleBusinessSetup()">⚙️ Edit Business Info</button>
   </div>
 </div>
 
 <section id="howToHome" class="card no-print">
-  <h2>📖 How To — Start Here</h2>
-  <div id="howToHomeBody"></div>
+  <button type="button" class="secondary" style="width:100%;text-align:left;font-size:1.05em" onclick="toggleHowToHome()">📖 How To — Start Here <span id="howToHomeCaret" style="float:right">▸ tap to open</span></button>
+  <div id="howToHomeBody" class="hidden" style="margin-top:8px"></div>
 </section>
 
 <section id="add" class="card hidden">
@@ -197,7 +192,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <section id="quick" class="card hidden">
 <h2>⚡ Quick Count</h2>
 <p class="small">Find an item and quickly add or subtract from its current quantity.</p>
-<div class="row no-print" style="flex-wrap:wrap;gap:8px;margin-bottom:10px"><button type="button" class="secondary" onclick="show('monthly')">📅 Monthly Inventory</button><button type="button" class="secondary" onclick="show('eom')">🗓️ End of Month</button></div>
+<div class="row no-print" style="flex-wrap:wrap;gap:8px;margin-bottom:10px"><button type="button" class="secondary" onclick="showAndGo('monthly')">📅 Monthly Inventory</button><button type="button" class="secondary" onclick="showAndGo('eom')">🗓️ End of Month</button></div>
 <div class="grid">
 <label>Search item</label>
 <label>Category
@@ -327,7 +322,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <div id="receiveResults" style="margin-top:12px"></div>
 </section>
 
-<section id="boxlabel" class="card hidden"> <h2>📦 Scan Box Label</h2> <p class="small">Snap a photo of a product box label. The app reads the item code, name, and pack size — check the fields, fix anything, then save it to your inventory.</p> <div class="row" style="margin-top:6px"><button type="button" class="secondary" onclick="show('add')">➕ Add Item by hand instead</button></div> <div class="row" style="flex-wrap:wrap;margin-top:8px"> <button type="button" class="primary" onclick="startBoxLabelScanner()">🔫 Scan Barcode</button> <button type="button" class="primary" onclick="document.getElementById('boxLabelCameraInput').click()">📷 Take Photo</button> <button type="button" class="secondary" onclick="document.getElementById('boxLabelUploadInput').click()">⬆️ Upload Photo</button> </div> <input id="boxLabelCameraInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="readBoxLabel(event)"> <input id="boxLabelUploadInput" type="file" accept="image/*" class="hidden" onchange="readBoxLabel(event)"> <p class="small" style="margin-top:6px">📷 Camera won't open? Open the app in Safari or Chrome instead of inside Messenger/Facebook — or take the photo first, then tap Upload Photo.</p><div id="boxLabelStatus" class="small" style="margin-top:8px"></div> <label class="small" style="display:block;margin-top:8px"><input type="checkbox" id="fastLoad"> 🔁 <b>Fast load:</b> after each save, open the camera for the next label</label> <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px"> <button type="button" class="secondary" onclick="startBulkScan()">🚀 Bulk Scan — many cases, one after another</button> <p class="small" style="margin-top:6px">Scanning a whole delivery? Bulk Scan reads each label and lines the cases up — check the codes and counts as they land, then file them all at once.</p> <div id="bulkPanel" class="hidden"> <div id="bulkStatus" class="small" style="margin-top:8px"></div> <div id="bulkLocPicker"><label>Location for these cases</label><select id="bulkLocation" onchange="boxLocationChanged(this)"></select><div class="row" style="margin-top:6px"><input id="bulkNewLoc" type="text" placeholder="New location — e.g. Walk-in Freezer" style="flex:1;min-width:140px"><button type="button" class="secondary" onclick="bulkAddLocation()">📍 Add Location</button></div><p class="small" style="margin-top:4px">New here? Add your places first — freezer, dry storage, shelves — then they are ready to pick for every load.</p></div> <div id="bulkCatPicker"><label>Category for brand-new items</label><select id="bulkCategory"><option>Food</option><option>Paper</option><option>Cleaning</option><option>Beverage</option><option>Supplies</option><option>Other</option></select></div> <div id="bulkScanList" style="margin-top:8px"></div> <p class="small" id="bulkTally" style="margin-top:8px"></p> <div class="row" style="flex-wrap:wrap;margin-top:8px"><button type="button" class="primary" onclick="startSessionBarcode('bulkReader','bulkStatus')">🔫 Scan Barcodes — Case After Case</button> <button type="button" class="primary" onclick="document.getElementById('bulkCameraInput').click()">📷 Scan Next Case</button> <button type="button" class="secondary" onclick="document.getElementById('bulkUploadInput').click()">⬆️ Upload Photo</button></div> <input id="bulkCameraInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="readBulkLabel(event)"> <input id="bulkUploadInput" type="file" accept="image/*" class="hidden" onchange="readBulkLabel(event)"><div id="bulkReader" style="width:100%;max-width:500px;margin:10px auto"></div><div class="row" id="bulkReaderStop" style="display:none;justify-content:center;margin-top:6px"><button type="button" class="secondary" onclick="stopSessionBarcode()">⏹ Done Scanning</button></div> <div class="row" style="flex-wrap:wrap;margin-top:10px"><button type="button" class="primary" onclick="finishBulkScan()">💾 File All These Cases</button> <button type="button" class="danger" onclick="cancelScanSession()">Cancel Bulk Scan</button></div> </div> </div> <div id="boxLabelResult" style="margin-top:12px"></div> </section>  <section id="history" class="card hidden">
+<section id="boxlabel" class="card hidden"> <h2>📦 Scan Box Label</h2> <p class="small">Snap a photo of a product box label. The app reads the item code, name, and pack size — check the fields, fix anything, then save it to your inventory.</p> <div class="row" style="margin-top:6px"><button type="button" class="secondary" onclick="showAndGo('add')">➕ Add Item by hand instead</button></div> <div class="row" style="flex-wrap:wrap;margin-top:8px"> <button type="button" class="primary" onclick="startBoxLabelScanner()">🔫 Scan Barcode</button> <button type="button" class="primary" onclick="document.getElementById('boxLabelCameraInput').click()">📷 Take Photo</button> <button type="button" class="secondary" onclick="document.getElementById('boxLabelUploadInput').click()">⬆️ Upload Photo</button> </div> <input id="boxLabelCameraInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="readBoxLabel(event)"> <input id="boxLabelUploadInput" type="file" accept="image/*" class="hidden" onchange="readBoxLabel(event)"> <p class="small" style="margin-top:6px">📷 Camera won't open? Open the app in Safari or Chrome instead of inside Messenger/Facebook — or take the photo first, then tap Upload Photo.</p><div id="boxLabelStatus" class="small" style="margin-top:8px"></div> <label class="small" style="display:block;margin-top:8px"><input type="checkbox" id="fastLoad"> 🔁 <b>Fast load:</b> after each save, open the camera for the next label</label> <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px"> <button type="button" class="secondary" onclick="startBulkScan()">🚀 Bulk Scan — many cases, one after another</button> <p class="small" style="margin-top:6px">Scanning a whole delivery? Bulk Scan reads each label and lines the cases up — check the codes and counts as they land, then file them all at once.</p> <div id="bulkPanel" class="hidden"> <div id="bulkStatus" class="small" style="margin-top:8px"></div> <div id="bulkLocPicker"><label>Location for these cases</label><select id="bulkLocation" onchange="boxLocationChanged(this)"></select><div class="row" style="margin-top:6px"><input id="bulkNewLoc" type="text" placeholder="New location — e.g. Walk-in Freezer" style="flex:1;min-width:140px"><button type="button" class="secondary" onclick="bulkAddLocation()">📍 Add Location</button></div><p class="small" style="margin-top:4px">New here? Add your places first — freezer, dry storage, shelves — then they are ready to pick for every load.</p></div> <div id="bulkCatPicker"><label>Category for brand-new items</label><select id="bulkCategory"><option>Food</option><option>Paper</option><option>Cleaning</option><option>Beverage</option><option>Supplies</option><option>Other</option></select></div> <div id="bulkScanList" style="margin-top:8px"></div> <p class="small" id="bulkTally" style="margin-top:8px"></p> <div class="row" style="flex-wrap:wrap;margin-top:8px"><button type="button" class="primary" onclick="startSessionBarcode('bulkReader','bulkStatus')">🔫 Scan Barcodes — Case After Case</button> <button type="button" class="primary" onclick="document.getElementById('bulkCameraInput').click()">📷 Scan Next Case</button> <button type="button" class="secondary" onclick="document.getElementById('bulkUploadInput').click()">⬆️ Upload Photo</button></div> <input id="bulkCameraInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="readBulkLabel(event)"> <input id="bulkUploadInput" type="file" accept="image/*" class="hidden" onchange="readBulkLabel(event)"><div id="bulkReader" style="width:100%;max-width:500px;margin:10px auto"></div><div class="row" id="bulkReaderStop" style="display:none;justify-content:center;margin-top:6px"><button type="button" class="secondary" onclick="stopSessionBarcode()">⏹ Done Scanning</button></div> <div class="row" style="flex-wrap:wrap;margin-top:10px"><button type="button" class="primary" onclick="finishBulkScan()">💾 File All These Cases</button> <button type="button" class="danger" onclick="cancelScanSession()">Cancel Bulk Scan</button></div> </div> </div> <div id="boxLabelResult" style="margin-top:12px"></div> </section>  <section id="history" class="card hidden">
 <h2>📋 Order History</h2>
 <p class="small">See what you marked as ordered and when.</p>
 <div id="orderHistoryList"></div>
@@ -337,7 +332,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <section id="order" class="card hidden">
 <h2>🧾 Order List</h2>
 <p class="small">Only items at or below minimum stock appear here.</p>
-<div class="row no-print" style="flex-wrap:wrap;gap:8px;margin-bottom:10px"><button type="button" class="secondary" onclick="show('receive')">📸 Receive Order</button><button type="button" class="secondary" onclick="show('history')">📋 Order History</button></div>
+<div class="row no-print" style="flex-wrap:wrap;gap:8px;margin-bottom:10px"><button type="button" class="secondary" onclick="showAndGo('receive')">📸 Receive Order</button><button type="button" class="secondary" onclick="showAndGo('history')">📋 Order History</button></div>
 <div class="grid">
 <label>Search
 <input id="orderSearch" placeholder="🔎 Search items or locations..." oninput="renderSmartOrders()">
@@ -360,7 +355,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 28.21</div>
+<div class="card small no-print">Version 28.22</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -564,7 +559,7 @@ function render(){
  document.getElementById('statLow').textContent=low.length;
  document.getElementById('statOrder').textContent=low.length;
 
- document.getElementById('statSuppliers').textContent=(typeof suppliers!=='undefined'?suppliers.length:0);
+ var ssEl=document.getElementById('statSuppliers'); if(ssEl) ssEl.textContent=(typeof suppliers!=='undefined'?suppliers.length:0);
  if(typeof window.renderFirstLoadBanner==='function')window.renderFirstLoadBanner();
 }
 function renderQuick(){ const y=window.scrollY;
@@ -978,6 +973,14 @@ function saveBoxLabelItem(){  const name=document.getElementById('blName').value
     updateManualConversion();
     renderManualReview();
   }
+}
+
+function showAndGo(id){
+  show(id);
+  setTimeout(function(){
+    var el=document.getElementById(id);
+    if(el&&el.scrollIntoView) el.scrollIntoView({block:'start'});
+  },80);
 }
 
 function copyGordonOrder(){
@@ -2609,6 +2612,12 @@ function printPullSheet(){ document.body.classList.add('print-sheet'); try{ wind
       +'<p class="small"><b>If a label or scan reads wrong:</b> do not fight with it. <b>Send the picture to Mary privately</b> — a screenshot of what it showed you, plus a photo of the label — with <b>Reach Mary</b> (in My Account) or by text or email. Please do <b>not</b> post label photos in the Facebook group: labels can carry your school\'s account numbers. Sending it to Mary is what she needs to fix it. Your paperwork stays yours — she does not keep it, and she never shares your information.</p>'
       +'<p class="small"><b>Forgot your password?</b> On the sign-in screen, type your email and tap <b>Forgot password</b> — a link to set a new one comes to your email.</p>';
   }
+  window.toggleHowToHome=function(){
+    var b=document.getElementById('howToHomeBody'); if(!b) return;
+    var nowHidden=b.classList.toggle('hidden');
+    var c=document.getElementById('howToHomeCaret');
+    if(c) c.textContent=nowHidden?'▸ tap to open':'▾ tap to close';
+  };
   function addHowTo(){
     var ap=document.getElementById('aboutPrivacy');
     if(ap&&!document.getElementById('howToBox')){

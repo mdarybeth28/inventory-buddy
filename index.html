@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inventory Buddy — V28.22</title>
+<title>Inventory Buddy — V28.23</title>
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -83,21 +83,25 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <h3 style="margin:6px 0">About Inventory Buddy</h3>
 <p class="small">Inventory Buddy is a website that helps school cafeteria staff count and track food inventory without paper. It was built by Mary Davis, a school cafeteria worker in Tennessee, after hearing at a work meeting that paper inventory was a pain point for just about everybody there.</p>
 <h3 style="margin:10px 0 6px">What it stores</h3>
-<p class="small">Your account email and password (passwords are stored scrambled — nobody can read them), and your inventory: product names, quantities, storage locations, and count and delivery dates.</p>
+<p class="small">Your account email and password (passwords are stored scrambled — nobody can read them), and your inventory: product names, quantities, storage locations, and count and delivery dates — plus, only for a school that turns that setting on, the per-case prices that school enters itself for its own inventory values.</p>
 <h3 style="margin:10px 0 6px">What it never stores</h3>
-<p class="small">Student names or student records of any kind. Meal accounts, balances, or eligibility information. Money, prices, or financial information.</p>
+<p class="small">Student names or student records of any kind. Meal accounts, balances, or eligibility information. Payment information, bank details, or meal-money records of any kind.</p>
 <h3 style="margin:10px 0 6px">Who can see your inventory</h3>
 <p class="small">Only your school's account. Every account is walled off from every other account. Your data is never sold and never shared with advertisers.</p>
 <h3 style="margin:10px 0 6px">For administrators</h3>
 <p class="small">Inventory counts are products on shelves — no student information is involved, ever. The pilot is free, there is nothing to install, and it runs in a normal web browser. If your school stops using Inventory Buddy, its account and inventory data can be deleted on request.</p>
 <h3 style="margin:10px 0 6px">Privacy, in plain words</h3>
-<p class="small"><b>What Inventory Buddy stores:</b> your account email and a password (the password is stored scrambled — nobody, including Mary, can read it), and your inventory: product names, quantities, storage locations, and count/delivery dates.</p>
-<p class="small"><b>What it never stores:</b> student names or student records of any kind; meal accounts, balances, or eligibility information; money, prices, or financial information; anything about anybody who is not your own school's account holder.</p>
+<p class="small"><b>What Inventory Buddy stores:</b> your account email and a password (the password is stored scrambled — nobody, including Mary, can read it), and your inventory: product names, quantities, storage locations, and count/delivery dates — plus, only for a school that turns that setting on, the per-case prices that school enters itself for its own inventory values.</p>
+<p class="small"><b>What it never stores:</b> student names or student records of any kind; meal accounts, balances, or eligibility information; payment information, bank details, or meal-money records; anything about anybody who is not your own school's account holder.</p>
 <p class="small"><b>Who can see your inventory:</b> only your school's account. Every account is walled off from every other account — signing in shows your school's shelves and nothing else's. Your data is never sold, never shared with advertisers, and never used for anything except running your inventory.</p>
 <p class="small"><b>Where it lives:</b> Inventory Buddy runs on GitHub Pages with its database at Supabase, an established U.S. database provider. Your inventory sits behind your password-protected login.</p>
 <p class="small"><b>Leaving:</b> stop any time — there is nothing to cancel during the pilot. Email Mary and your account and its inventory data will be deleted.</p>
 <p class="small"><b>Questions:</b> Mary Davis — marybeth.davis28@gmail.com · (731) 358-5337</p>
 </div>
+</div>
+<div style="margin-top:14px;border-top:1px solid #c2f4d6;padding-top:10px">
+<button type="button" class="secondary" id="pricesToggleBtn" onclick="togglePrices()">💲 Prices &amp; Values: OFF — tap to turn on</button>
+<p class="small" style="margin-top:6px">Off unless your school tracks prices. Turn it on and items can carry a price per case, a price-list spreadsheet can be loaded at Box Label, and End of Month totals what your shelves are worth — the number your office works from. Schools that only count never see a money field.</p>
 </div>
     </div><div id="emailChangeForm" class="card hidden" style="margin-top:12px;padding:12px;box-shadow:none;border:1px solid #ddd"><h3 style="margin:0 0 8px">📧 Change Email</h3><label for="newAccountEmail">New email address</label><input id="newAccountEmail" type="email" autocomplete="email" placeholder="you@example.com"><button type="button" class="primary" onclick="changeAccountEmail()">Send Confirmation Link</button><div class="small" style="margin-top:6px">The change finishes when you tap the link sent to the new address.</div></div>
     <div id="passwordChangeForm" class="card hidden" style="margin-top:12px;padding:12px;box-shadow:none;border:1px solid #ddd">
@@ -172,6 +176,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <select id="unit"><option>cases</option><option>crates</option><option>boxes</option><option>cans</option><option>bags</option><option>packs</option><option>each</option><option>pounds</option><option>gallons</option></select>
 <label>Items per package</label><input id="packSize" type="number" min="0" step="1" placeholder="Example: 80 donuts per case, 120 rolls per case">
 <div class="small" style="margin-top:-6px;margin-bottom:10px">This is specific to this item. Example: Donuts = 80/case, Rolls = 120/case, Milk = 50/crate, Juice = 75/crate.</div>
+<div id="priceRow" style="display:none"><label>Price per case ($ — optional)</label><input id="price" type="number" min="0" step="0.01" placeholder="From your price list"><div class="small" style="margin-top:-6px;margin-bottom:10px">Only here because Prices &amp; Values is on (in My Account). It feeds the End of Month value total. Leave it blank for items you do not price.</div></div>
 <label>Current quantity</label><input id="qty" type="number" min="0" step="0.1" placeholder="0">
 <label>Minimum stock</label><input id="min" type="number" min="0" step="0.1" placeholder="2">
 <label>Normal order quantity</label><input id="orderQty" type="number" min="0" step="0.1" placeholder="4">
@@ -355,7 +360,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 28.22</div>
+<div class="card small no-print">Version 28.23</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -378,6 +383,18 @@ let orderHistory=JSON.parse(localStorage.getItem('inventoryBuddyOrderHistory')||
 let suppliers=JSON.parse(localStorage.getItem('inventoryBuddySuppliers')||'[]'); let locations=JSON.parse(localStorage.getItem('inventoryBuddyLocations')||'[]'); let lastLocationPick='';
 let editingSupplierId=null;
 
+// ── V28.23: Prices & Values — a turn-on feature, OFF by default. A school
+// that only counts never sees a money field. The switch is per account
+// (it rides the settings save when it can; this device remembers it too).
+let showPrices=false; try{ showPrices=localStorage.getItem('inventoryBuddyShowPrices')==='1'; }catch(e){}
+function pricesOn(){ return !!showPrices; }
+function fmtMoney(n){ n=Number(n); if(!isFinite(n))return ''; return '$'+n.toFixed(2); }
+function itemPrice(i){ if(!i||i.price===null||i.price===undefined||i.price==='')return null; const p=Number(i.price); return (isFinite(p)&&p>=0)?Math.round(p*100)/100:null; }
+function priceFromInput(){ const el=document.getElementById('price'); if(!el)return null; return itemPrice({price:el.value}); }
+function applyPriceVisibility(){ const pr=document.getElementById('priceRow'); if(pr)pr.style.display=showPrices?'':'none'; const b=document.getElementById('pricesToggleBtn'); if(b)b.textContent='💲 Prices & Values: '+(showPrices?'ON — tap to turn off':'OFF — tap to turn on'); }
+function setPricesOn(on){ showPrices=!!on; try{ localStorage.setItem('inventoryBuddyShowPrices',showPrices?'1':'0'); }catch(e){} applyPriceVisibility(); render(); if(typeof scheduleCloudSync==='function')scheduleCloudSync(); }
+function togglePrices(){ setPricesOn(!showPrices); }
+function scanEntryPrice(i,v){ if(!scanSession||!scanSession.entries[i])return; const t=String(v||'').trim(); if(t===''){ scanSession.entries[i].price=null; return; } const n=Number(t); scanSession.entries[i].price=(isFinite(n)&&n>=0)?Math.round(n*100)/100:null; }
 function persist(){localStorage.setItem('inventoryBuddyV2',JSON.stringify(items));render();if(typeof scheduleCloudSync==='function')scheduleCloudSync();}
 function saveBusiness(){
  const n=document.getElementById('businessName').value.trim();
@@ -453,7 +470,7 @@ function saveItem(){
  const locEl=document.getElementById('location');
  const name=nameEl.value.trim();
  if(!name)return alert('Please enter an item name.');
- const data={name,cat:catEl.value,unit:unitEl.value,packSize:Number(packEl?.value||0),qty:Number(qtyEl.value||0),min:Number(minEl.value||0),orderQty:Number(orderEl.value||0),barcode:barcodeEl.value.trim(),upc:(document.getElementById('upc')?document.getElementById('upc').value.trim():''),supplierId:supplierEl?.value||'',location:locEl?locEl.value.trim():''};
+ const data={name,cat:catEl.value,unit:unitEl.value,packSize:Number(packEl?.value||0),qty:Number(qtyEl.value||0),min:Number(minEl.value||0),orderQty:Number(orderEl.value||0),barcode:barcodeEl.value.trim(),upc:(document.getElementById('upc')?document.getElementById('upc').value.trim():''),supplierId:supplierEl?.value||'',location:locEl?locEl.value.trim():''}; data.price=priceFromInput();
  if(editingId){
    const existing=items.find(x=>x.id===editingId);
    if(!existing)return alert('This item could not be found. Refresh and try again.');
@@ -479,6 +496,7 @@ function editItem(id){
  document.getElementById('orderQty').value=x.orderQty ?? 0;
  document.getElementById('barcode').value=x.barcode||'';
  const upcEl=document.getElementById('upc'); if(upcEl)upcEl.value=x.upc||'';
+ const priceEl=document.getElementById('price'); if(priceEl)priceEl.value=(itemPrice(x)!=null?itemPrice(x):'');
  if(typeof itemCodeWarnCheck==='function')itemCodeWarnCheck();
  populateSupplierSelect();
  const supplierEl=document.getElementById('supplierId');
@@ -486,7 +504,7 @@ function editItem(id){
  document.getElementById('formTitle').textContent='✏️ Edit Item';
  show('add');
 }
-function cancelEdit(){editingId=null;formTitle.textContent='Add an Item';document.getElementById('name').value='';document.getElementById('packSize').value='';qty.value='';min.value='';orderQty.value='';barcode.value='';if(document.getElementById('upc'))document.getElementById('upc').value='';const icw=document.getElementById('itemCodeWarn');if(icw)icw.style.display='none';cat.value='Food';unit.value='cases';if(document.getElementById('supplierId'))document.getElementById('supplierId').value='';document.getElementById('location').value='';}
+function cancelEdit(){editingId=null;formTitle.textContent='Add an Item';document.getElementById('name').value='';document.getElementById('packSize').value='';qty.value='';min.value='';orderQty.value='';barcode.value='';if(document.getElementById('upc'))document.getElementById('upc').value='';if(document.getElementById('price'))document.getElementById('price').value='';const icw=document.getElementById('itemCodeWarn');if(icw)icw.style.display='none';cat.value='Food';unit.value='cases';if(document.getElementById('supplierId'))document.getElementById('supplierId').value='';document.getElementById('location').value='';}
 function change(id,delta){
  const y=window.scrollY;
  const x=items.find(i=>String(i.id)===String(id));
@@ -512,7 +530,7 @@ function itemHTML(i){
  return `<div class="item"><div class="row"><div><b>${esc(i.name)}</b><div><span class="badge">${esc(i.cat)}</span> <span class="badge">${esc(i.unit)}</span>${i.location?` <span class="badge">${esc(i.location)}</span>`:''}${splitLocBadge(i)}</div>
  <div class="${low?'low':'good'}">${low?'⚠️ LOW STOCK':'✓ In stock'} — ${qtyText} ${esc(i.unit)} <span class="small">(minimum ${i.min})</span></div>
  ${totalUnits!==null?`<div class="small">≈ ${Number.isInteger(totalUnits)?totalUnits:totalUnits.toFixed(1)} individual units remaining</div>`:''}
- ${low&&i.orderQty?`<div class="small">Suggested order: <b>${i.orderQty} ${esc(i.unit)}</b></div>`:''}${i.barcode?`<div class="small">Item #: ${esc(i.barcode)}</div>`:''}${i.upc?`<div class="small">Stripes barcode: ${esc(i.upc)}</div>`:''}${pack>0?`<div class="small">Items per package: ${esc(pack)} units per ${esc(i.unit)}</div>`:''}${i.supplierId?`<div class="small">Supplier: ${esc(getSupplierName(i.supplierId))}</div>`:''}</div>
+ ${low&&i.orderQty?`<div class="small">Suggested order: <b>${i.orderQty} ${esc(i.unit)}</b></div>`:''}${i.barcode?`<div class="small">Item #: ${esc(i.barcode)}</div>`:''}${i.upc?`<div class="small">Stripes barcode: ${esc(i.upc)}</div>`:''}${pack>0?`<div class="small">Items per package: ${esc(pack)} units per ${esc(i.unit)}</div>`:''}${(typeof pricesOn==='function'&&pricesOn())?(itemPrice(i)!=null?`<div class="small">Price: ${fmtMoney(itemPrice(i))} · On hand ≈ ${fmtMoney(itemPrice(i)*(Number(i.qty)||0))}</div>`:`<div class="small">No price set</div>`):''}${i.supplierId?`<div class="small">Supplier: ${esc(getSupplierName(i.supplierId))}</div>`:''}</div>
  <div><button type="button" onclick="change('${i.id}',-1)">−</button><button type="button" onclick="change('${i.id}',1)">+</button></div></div>
  <div class="no-print"><button type="button" class="secondary" onclick="useItems('${i.id}')">🧮 Use Items</button><button type="button" class="secondary" onclick="editItem('${i.id}')">✏️ Edit</button><button type="button" class="danger" onclick="removeItem('${i.id}')">Delete</button></div></div>`;
 }
@@ -552,6 +570,7 @@ function useItems(id){
 }
 function list(data){splitLocMap=buildSplitLocMap();return data.length?data.map(itemHTML).join(''):'<p class="small">Nothing here yet.</p>'}
 function render(){
+ applyPriceVisibility();
  const sq=(document.getElementById('searchBox')?.value||'').toLowerCase().trim(); const shown=sq?items.filter(i=>String(i.name||'').toLowerCase().includes(sq)||(String(i.barcode||'')+' '+String(i.upc||'')).includes(sq)||String(i.location||'').toLowerCase().includes(sq)):items; inventoryList.innerHTML=list(shown);
  const low=items.filter(i=>Number(i.min)>0 && Number(i.qty)<=Number(i.min));lowList.innerHTML=list(low);
  const orderBox=document.getElementById('orderList'); if(orderBox) orderBox.innerHTML=low.length?low.map(i=>`<div class="item"><b>${esc(i.name)}</b> — order <b>${i.orderQty||'needed'}</b> ${esc(i.unit)} <span class="small">(${i.cat})</span></div>`).join(''):'<p class="small">Nothing needs ordering.</p>';
@@ -1961,10 +1980,23 @@ async function syncToCloud(allowEmpty){
   }
   for(const table of ['order_history','ordered_items','monthly_inventory','inventory_items','suppliers']){const {error}=await inventoryBuddySupabase.from(table).delete().eq('user_id',user.id);if(error)throw error;}
   if(suppliers.length){const {error}=await inventoryBuddySupabase.from('suppliers').insert(suppliers.map(s=>({id:String(s.id),user_id:user.id,name:String(s.name||''),contact:String(s.contact||'')})));if(error)throw error;}
-  if(items.length){const {error}=await inventoryBuddySupabase.from('inventory_items').insert(items.map(i=>({id:String(i.id),user_id:user.id,name:String(i.name||''),category:String(i.cat||i.Category||'Other'),location:String(i.location||''),package_type:String(i.unit||'cases'),items_per_package:Number(i.packSize)||1,quantity:Number(i.qty)||0,minimum_stock:Number(i.min)||0,normal_order_quantity:Number(i.orderQty)||0,barcode:i.barcode?String(i.barcode):null,supplier_id:i.supplierId?String(i.supplierId):null})));if(error)throw error;}
+  if(items.length){
+   const legacyItemRow=function(i){ return {id:String(i.id),user_id:user.id,name:String(i.name||''),category:String(i.cat||i.Category||'Other'),location:String(i.location||''),package_type:String(i.unit||'cases'),items_per_package:Number(i.packSize)||1,quantity:Number(i.qty)||0,minimum_stock:Number(i.min)||0,normal_order_quantity:Number(i.orderQty)||0,barcode:i.barcode?String(i.barcode):null,supplier_id:i.supplierId?String(i.supplierId):null}; };
+   // V28.23: price and the stripes barcode ride along once their columns
+   // exist in the database. If they are not there yet, that insert fails
+   // and we retry with exactly the old columns — a sync must never break
+   // over a column that is still on its way.
+   const fullItemRows=items.map(function(i){ const r=legacyItemRow(i); r.upc=i.upc?String(i.upc):null; r.price=(typeof itemPrice==='function')?itemPrice(i):null; return r; });
+   const insFull=await inventoryBuddySupabase.from('inventory_items').insert(fullItemRows);
+   if(insFull.error){ const insLegacy=await inventoryBuddySupabase.from('inventory_items').insert(items.map(legacyItemRow)); if(insLegacy.error)throw insLegacy.error; }
+  }
   if(orderHistory.length){const {error}=await inventoryBuddySupabase.from('order_history').insert(orderHistory.map(o=>({user_id:user.id,inventory_item_id:o.itemId?String(o.itemId):null,item_name:String(o.name||''),quantity:Number(o.quantity)||0,supplier_id:null,ordered_at:o.orderedAt||new Date().toISOString()})));if(error)throw error;}
   if(orderedItems.length){const {error}=await inventoryBuddySupabase.from('ordered_items').insert(orderedItems.map(id=>({user_id:user.id,inventory_item_id:String(id)})));if(error)throw error;}
-  if(business){const {error}=await inventoryBuddySupabase.from('user_settings').upsert({user_id:user.id,business_name:String(business.name||''),business_type:String(business.type||''),updated_at:new Date().toISOString()});if(error)throw error;}
+  if(business){
+   const stFull={user_id:user.id,business_name:String(business.name||''),business_type:String(business.type||''),show_prices:(typeof showPrices!=='undefined')?!!showPrices:false,updated_at:new Date().toISOString()};
+   const upFull=await inventoryBuddySupabase.from('user_settings').upsert(stFull);
+   if(upFull.error){ const stLegacy={user_id:user.id,business_name:stFull.business_name,business_type:stFull.business_type,updated_at:stFull.updated_at}; const upLegacy=await inventoryBuddySupabase.from('user_settings').upsert(stLegacy); if(upLegacy.error)throw upLegacy.error; }
+  }
   if(snapshots.length){const rows=[];snapshots.forEach(s=>{(s.items||[]).forEach(x=>{const found=items.find(i=>String(i.id)===String(x.id));if(found)rows.push({user_id:user.id,inventory_item_id:String(found.id),inventory_month:s.month+'-01',quantity:Number(x.qty)||0});});});if(rows.length){const {error}=await inventoryBuddySupabase.from('monthly_inventory').insert(rows);if(error)throw error;}}
   cloudStatus('☁️ Synced to the cloud',true);
  }catch(err){console.error('Cloud sync error',err);cloudStatus('Cloud sync needs attention: '+(err?.message||'unknown error'));}finally{cloudSyncBusy=false;}
@@ -1989,9 +2021,10 @@ async function loadCloudData(){
     cloudReady=true;document.body.classList.add("authenticated");render();renderMonthly();renderBusiness();populateSupplierSelect();populateLocationSelect();cloudStatus('☁️ Connected — the cloud copy looked empty, so I kept your last good list ('+bk.items.length+' items, saved '+String(bk.at).slice(0,10)+'). It will re-save to the cloud as you work.',true);scheduleCloudSync();return;}
   }
   suppliers=cloudSuppliers.map(s=>({id:s.id,name:s.name,contact:s.contact||''}));
-  const localUpc={};(items||[]).forEach(function(x){if(x&&x.upc)localUpc[String(x.id)]=x.upc;}); items=cloudItems.map(i=>({id:i.id,name:i.name,cat:i.category||i.Category||'Other',Category:i.category||i.Category||'Other',location:i.location||'',unit:i.package_type||'cases',packSize:Number(i.items_per_package)||0,qty:Number(i.quantity)||0,min:Number(i.minimum_stock)||0,orderQty:Number(i.normal_order_quantity)||0,barcode:i.barcode||'',upc:localUpc[String(i.id)]||'',supplierId:i.supplier_id||''}));
+  const localUpc={}; const localPrice={}; (items||[]).forEach(function(x){ if(x&&x.upc)localUpc[String(x.id)]=x.upc; if(x&&x.price!==null&&x.price!==undefined&&x.price!=='')localPrice[String(x.id)]=x.price; }); items=cloudItems.map(i=>({id:i.id,name:i.name,cat:i.category||i.Category||'Other',Category:i.category||i.Category||'Other',location:i.location||'',unit:i.package_type||'cases',packSize:Number(i.items_per_package)||0,qty:Number(i.quantity)||0,min:Number(i.minimum_stock)||0,orderQty:Number(i.normal_order_quantity)||0,barcode:i.barcode||'',upc:(i.upc||localUpc[String(i.id)]||''),price:(i.price!==null&&i.price!==undefined&&i.price!==''&&isFinite(Number(i.price)))?Number(i.price):(localPrice[String(i.id)]!==undefined?localPrice[String(i.id)]:null),supplierId:i.supplier_id||''}));
   orderedItems=(or.data||[]).map(x=>String(x.inventory_item_id));orderHistory=(hr.data||[]).map(x=>({id:x.id,itemId:x.inventory_item_id,name:x.item_name,quantity:Number(x.quantity)||0,orderedAt:x.ordered_at}));
   business=ur.data?{name:ur.data.business_name||'',type:ur.data.business_type||''}:null;
+  if(ur.data&&typeof ur.data.show_prices==='boolean'){ showPrices=ur.data.show_prices; try{ localStorage.setItem('inventoryBuddyShowPrices',showPrices?'1':'0'); }catch(e){} }
   const byMonth={};(mr.data||[]).forEach(r=>{const month=String(r.inventory_month||'').slice(0,7);(byMonth[month] ||= []).push(r);});snapshots=Object.keys(byMonth).sort().reverse().map(month=>({month,savedAt:new Date().toISOString(),items:byMonth[month].map(r=>{const i=items.find(x=>String(x.id)===String(r.inventory_item_id));return i?{id:i.id,name:i.name,unit:i.unit,cat:i.cat,qty:Number(r.quantity)||0,barcode:i.barcode||''}:null;}).filter(Boolean)}));
   localStorage.setItem('inventoryBuddyV2',JSON.stringify(items));localStorage.setItem('inventoryBuddySuppliers',JSON.stringify(suppliers));localStorage.setItem('inventoryBuddyOrdered',JSON.stringify(orderedItems));localStorage.setItem('inventoryBuddyOrderHistory',JSON.stringify(orderHistory));localStorage.setItem('inventoryBuddySnapshots',JSON.stringify(snapshots));if(business)localStorage.setItem('inventoryBuddyBusiness',JSON.stringify(business));else localStorage.removeItem('inventoryBuddyBusiness');
   cloudReady=true;document.body.classList.add("authenticated");render();renderMonthly();renderBusiness();populateSupplierSelect();populateLocationSelect();saveGoodBackup(user.email);cloudStatus('☁️ Connected — your phone and computer can share this inventory.',true);
@@ -2090,9 +2123,12 @@ function scanEntriesHTML(){
       +'<input style="flex:1;min-width:110px" value="'+esc(e.name)+'" placeholder="Item name" onchange="scanEntryEdit('+i+',\'name\',this.value)" aria-label="Item name">'
       +'<span class="small">'+(e.packText?esc(e.packText):'')+scanInListTag(e.code)+(e.warn?'<b style="color:#b00020"> \u26a0 check code</b>':'')+'</span>'
       +(e.report?'<select style="flex:0 0 118px" onchange="scanEntryLoc('+i+',this)" aria-label="Location for this item">'+reportLocOptionsHTML(e.location)+'</select>':'')
+      +(e.price!==undefined?'<span class="small" style="flex:0 0 auto">$</span><input type="number" min="0" step="0.01" inputmode="decimal" style="flex:0 0 64px" value="'+(e.price==null?'':e.price)+'" onchange="scanEntryPrice('+i+',this.value)" aria-label="Price for this item">':'')
+      +(e.dup?'<b style="color:#b00020"> \u26a0 in the file twice \u2014 first one kept</b>':'')
+      +(e.priceWarn?'<b style="color:#b00020"> \u26a0 price looks high \u2014 check it</b>':'')
       +'<button type="button" class="secondary" style="font-size:19px;min-width:42px" onclick="scanEntryCount('+i+',-1)">−</button>'
       +(e.report
-        ?'<input type="number" min="0" step="1" inputmode="numeric" style="flex:0 0 58px;text-align:center" value="'+e.count+'" oninput="scanEntryCountSet('+i+',this.value,true)" onchange="scanEntryCountSet('+i+',this.value)" aria-label="Count for this item">'
+        ?'<input type="number" min="0" step="0.01" inputmode="decimal" style="flex:0 0 58px;text-align:center" value="'+e.count+'" oninput="scanEntryCountSet('+i+',this.value,true)" onchange="scanEntryCountSet('+i+',this.value)" aria-label="Count for this item">'
         :'<strong style="min-width:24px;text-align:center">'+e.count+'</strong>')
       +'<button type="button" class="primary" style="font-size:19px;min-width:42px" onclick="scanEntryCount('+i+',1)">+</button>'
       +'<button type="button" class="danger" onclick="scanEntryRemove('+i+')">✕</button></div>';
@@ -2121,7 +2157,7 @@ function scanEntryCountSet(i,v,soft){
   // blur) re-renders so the tallies refresh. Writes the same field the
   // steppers write: entries[i].count, clamped at 0.
   if(!scanSession||!scanSession.entries[i])return;
-  let n=Math.floor(Number(v));
+  let n=Math.round(Number(v)*100)/100; // V28.23: counts can be fractions (3.5 cases is a real count)
   if(!Number.isFinite(n)||n<0)n=0;
   scanSession.entries[i].count=n;
   if(!soft)renderScanSession();
@@ -2197,10 +2233,10 @@ function finishBulkScan(){
     let match=null;
     if(e.code)match=items.find(function(x){return x.barcode&&String(x.barcode).trim()===e.code;});
     if(!match&&e.name){ const nl=e.name.toLowerCase(); match=items.find(function(x){return x.name&&x.name.trim().toLowerCase()===nl;}); }
-    if(match){ match.qty=Number(match.qty||0)+e.count; if(!match.packSize&&e.packSize)match.packSize=e.packSize; if(!match.location&&eloc)match.location=eloc; if(e.upc&&!match.upc)match.upc=e.upc; matched++; }
+    if(match){ match.qty=Number(match.qty||0)+e.count; if(!match.packSize&&e.packSize)match.packSize=e.packSize; if(!match.location&&eloc)match.location=eloc; if(e.upc&&!match.upc)match.upc=e.upc; if(e.price!==undefined&&e.price!==null&&isFinite(Number(e.price)))match.price=Math.round(Number(e.price)*100)/100; matched++; }
     else{
       if(!e.name){ alert('One scanned case has no name ('+(e.code||'no code read')+'). Type its name in the list, then file again.'); return; }
-      items.push({id:Date.now()+added,name:e.name,cat:ecat,location:eloc,unit:eunit,packSize:Number(e.packSize||0),qty:e.count,min:0,orderQty:0,barcode:e.code,upc:e.upc||'',supplierId:''}); added++;
+      items.push({id:Date.now()+added,name:e.name,cat:ecat,location:eloc,unit:eunit,packSize:Number(e.packSize||0),qty:e.count,min:0,orderQty:0,barcode:e.code,upc:e.upc||'',price:(e.price!==undefined&&e.price!==null&&isFinite(Number(e.price)))?Math.round(Number(e.price)*100)/100:null,supplierId:''}); added++;
     }
   }
   persist();
@@ -2247,16 +2283,18 @@ function finishEom(){
   const rows=[]; const seen={};
   items.filter(function(it){ return !loc||(it.location||'').trim().toLowerCase()===loc.toLowerCase(); }).forEach(function(it){
     const c=String(it.barcode||'').trim(); const sc=c?(counted[c]||0):0; if(c)seen[c]=1;
-    rows.push({id:it.id,name:it.name,code:c,loc:it.location||'',unit:it.unit||'',buddy:Number(it.qty||0),counted:sc,extra:false});
+    rows.push({id:it.id,name:it.name,code:c,loc:it.location||'',unit:it.unit||'',buddy:Number(it.qty||0),counted:sc,price:itemPrice(it),extra:false});
   });
   order.forEach(function(code){ if(!seen[code]){ const e=s.entries.find(function(x){return x.code===code;}); rows.push({id:null,name:(e&&e.name)||'(no name read)',code:code,loc:loc,unit:'cases',buddy:0,counted:counted[code],extra:true,packSize:e?e.packSize:0}); } });
   s.report=rows;
   const off=rows.filter(function(r){return r.buddy!==r.counted;});
+  const pOn=(typeof pricesOn==='function'&&pricesOn());
   let h='<div class="card" style="margin-top:10px"><b>End of month — compare</b>';
   h+='<p class="small">Each scan counted as one case. <b>In Buddy</b> is the count already saved; <b>Counted</b> is what you scanned just now. Rows that differ are marked ⚠.</p>';
-  h+='<table class="pullsheet-table"><tr><th>Item</th><th>In Buddy</th><th>Counted</th><th></th></tr>';
-  rows.forEach(function(r){ h+='<tr><td>'+esc(r.name)+(r.extra?' <span class="badge">not in your list</span>':'')+'</td><td>'+r.buddy+'</td><td>'+r.counted+'</td><td>'+(r.buddy===r.counted?'✓':'⚠')+'</td></tr>'; });
+  h+='<table class="pullsheet-table"><tr><th>Item</th><th>In Buddy</th><th>Counted</th>'+(pOn?'<th>Value</th>':'')+'<th></th></tr>';
+  rows.forEach(function(r){ h+='<tr><td>'+esc(r.name)+(r.extra?' <span class="badge">not in your list</span>':'')+'</td><td>'+r.buddy+'</td><td>'+r.counted+'</td>'+(pOn?('<td>'+(r.price!=null?fmtMoney(r.price*r.counted):'<span class="small">no price</span>')+'</td>'):'')+'<td>'+(r.buddy===r.counted?'✓':'⚠')+'</td></tr>'; });
   h+='</table>';
+  if(pOn){ let tv=0,nc=0,np=0; rows.forEach(function(r){ if(r.price!=null){ tv+=r.price*r.counted; nc++; } else if(r.counted>0){ np++; } }); h+='<p style="margin-top:8px"><b>Total value counted: '+fmtMoney(tv)+'</b> <span class="small">('+nc+' item'+(nc===1?'':'s')+' with a price'+(np?('; '+np+' counted item'+(np===1?'':'s')+' had no price, so '+(np===1?'it is':'they are')+' not in the total'):'')+')</span></p>'; }
   h+='<p class="small" style="margin-top:8px">'+(off.length?('<b>'+off.length+' difference'+(off.length===1?'':'s')+' to look at.</b>'):'<b>Everything matches.</b> Nice counting.')+'</p>';
   h+='<div class="row no-print" style="flex-wrap:wrap;margin-top:8px"><button type="button" class="primary" onclick="applyEomCounts()">💾 Update Buddy With These Counts</button> <button type="button" class="secondary" onclick="buildPullSheet()">🧾 Build Pull Sheet</button></div>';
   h+='<p class="small">Updating Buddy sets each counted item to the number you scanned. Items you did not scan are set to 0'+(loc?(' in '+esc(loc)):'')+'. Scanned items that are not in your list get added.</p></div>';
@@ -2274,15 +2312,17 @@ function applyEomCounts(){
 }
 function buildPullSheet(){
   const s=scanSession; if(!s||!s.report)return;
+  const pOn=(typeof pricesOn==='function'&&pricesOn());
   const biz=(document.getElementById('businessName')&&document.getElementById('businessName').value)||'Inventory Buddy';
   const today=new Date().toLocaleDateString();
   const countedRows=s.report.filter(function(r){return r.counted>0;});
   const off=s.report.filter(function(r){return r.buddy!==r.counted;});
   let h='<div class="card" style="margin-top:10px"><h3 style="margin-top:0">🧾 End of Month Pull Sheet</h3>';
   h+='<p class="small">'+esc(biz)+' • Counted: '+today+(s.location?(' • Location: '+esc(s.location)):' • All locations')+'</p>';
-  h+='<table class="pullsheet-table"><tr><th>Item</th><th>Location</th><th>Count</th></tr>';
-  countedRows.forEach(function(r){ h+='<tr><td>'+esc(r.name)+'</td><td>'+esc(r.loc||'')+'</td><td>'+r.counted+' '+esc(r.unit||'')+'</td></tr>'; });
+  h+='<table class="pullsheet-table"><tr><th>Item</th><th>Location</th><th>Count</th>'+(pOn?'<th>Value</th>':'')+'</tr>';
+  countedRows.forEach(function(r){ h+='<tr><td>'+esc(r.name)+'</td><td>'+esc(r.loc||'')+'</td><td>'+r.counted+' '+esc(r.unit||'')+'</td>'+(pOn?('<td>'+(r.price!=null?fmtMoney(r.price*r.counted):'<span class="small">no price</span>')+'</td>'):'')+'</tr>'; });
   h+='</table>';
+  if(pOn){ let tv=0,nc=0,np=0; countedRows.forEach(function(r){ if(r.price!=null){ tv+=r.price*r.counted; nc++; } else { np++; } }); h+='<p style="margin-top:8px"><b>Total value: '+fmtMoney(tv)+'</b> <span class="small">('+nc+' item'+(nc===1?'':'s')+' with a price'+(np?('; '+np+' counted item'+(np===1?'':'s')+' had no price, so '+(np===1?'it is':'they are')+' not in the total'):'')+')</span></p>'; }
   if(off.length){
     h+='<h4 style="margin:14px 0 4px">Differences (in Buddy vs counted)</h4><table class="pullsheet-table"><tr><th>Item</th><th>In Buddy</th><th>Counted</th></tr>';
     off.forEach(function(r){ h+='<tr><td>'+esc(r.name)+(r.extra?' (not in list)':'')+'</td><td>'+r.buddy+'</td><td>'+r.counted+'</td></tr>'; });
@@ -2610,6 +2650,7 @@ function printPullSheet(){ document.body.classList.add('print-sheet'); try{ wind
       +'<p class="small"><b>Finding things:</b> every search box (My Inventory, Count, Orders) finds an item by its <b>name</b>, its <b>item number</b>, or where it lives — type a location name like <b>freezer 1</b> and everything stored there comes up.</p>'
       +'<p class="small"><b>End of month:</b> End of Month mode walks you shelf by shelf and builds the pull sheet to turn in. Because your list is already in Buddy, this is the big time-saver — the count starts from your list instead of a blank sheet.</p>'
       +'<p class="small"><b>If a label or scan reads wrong:</b> do not fight with it. <b>Send the picture to Mary privately</b> — a screenshot of what it showed you, plus a photo of the label — with <b>Reach Mary</b> (in My Account) or by text or email. Please do <b>not</b> post label photos in the Facebook group: labels can carry your school\'s account numbers. Sending it to Mary is what she needs to fix it. Your paperwork stays yours — she does not keep it, and she never shares your information.</p>'
+      +'<p class="small"><b>Prices &amp; values (only if your school uses them):</b> most schools leave this off. If your office works from a price list, turn on <b>Prices &amp; Values</b> in <b>My Account</b> — then items can carry a price per case, and <b>Box Label → Load from a price-list spreadsheet</b> can read an Excel guide (item, item #, price, count) straight into your list. End of Month then totals what your shelves are worth. Barcodes are not in those files — Buddy learns each one the first time you scan that box.</p>'
       +'<p class="small"><b>Forgot your password?</b> On the sign-in screen, type your email and tap <b>Forgot password</b> — a link to set a new one comes to your email.</p>';
   }
   window.toggleHowToHome=function(){
@@ -3042,6 +3083,310 @@ function extractReportRows(text){
     else parent.appendChild(div);
   }
   addReportLoadUI();
+})();
+</script>
+
+<script>
+// ── V28.23: Guide Load — read a price-list spreadsheet (the inventory
+// guide an office keeps in Excel) into the same review list Report Load
+// uses. The parser brain (guideRowsFromGrid) works on a plain 2D grid,
+// so an .xlsx (through a lazily loaded reader) and a .csv (parsed right
+// here) pass through exactly the same checks. Nothing saves until the
+// rows are filed from the review list, same as every other load.
+function guideCellStr(v){ if(v===null||v===undefined)return ''; return String(v).trim(); }
+function guideCode(v){
+  if(v===null||v===undefined)return '';
+  if(typeof v==='number'){ if(!isFinite(v))return ''; return (Math.floor(v)===v)?String(Math.floor(v)):String(v); }
+  var s=String(v).trim();
+  if(/^\d+\.0+$/.test(s))s=s.replace(/\.0+$/,'');
+  return s;
+}
+function guideMoney(v){
+  if(v===null||v===undefined||v==='')return null;
+  if(typeof v==='number')return isFinite(v)?Math.round(v*100)/100:null;
+  var s=String(v).replace(/[$,\s]/g,'');
+  if(!s)return null;
+  var n=Number(s);
+  return isFinite(n)?Math.round(n*100)/100:null;
+}
+function guideNum(v){
+  if(v===null||v===undefined||v==='')return '';
+  if(typeof v==='number')return isFinite(v)?v:'';
+  var s=String(v).replace(/[$,\s]/g,'');
+  if(!s)return '';
+  var n=Number(s);
+  return isFinite(n)?n:'';
+}
+function guideUnit(v){
+  var t=guideCellStr(v).toLowerCase().replace(/\.+$/,'');
+  if(t==='cs'||t==='case'||t==='cases')return 'cases';
+  if(t==='ea'||t==='each'||t==='eaches')return 'each';
+  if(t==='crate'||t==='crates')return 'crates';
+  if(t==='box'||t==='boxes')return 'boxes';
+  if(t==='can'||t==='cans')return 'cans';
+  if(t==='bag'||t==='bags')return 'bags';
+  if(t==='pack'||t==='packs'||t==='pk')return 'packs';
+  if(t==='lb'||t==='lbs'||t==='pound'||t==='pounds')return 'pounds';
+  if(t==='gal'||t==='gallon'||t==='gallons')return 'gallons';
+  return 'cases';
+}
+function guideUnitLike(v){
+  var t=guideCellStr(v).toLowerCase().replace(/\.+$/,'');
+  return /^(cs|case|cases|ea|each|eaches|crate|crates|box|boxes|can|cans|bag|bags|pack|packs|pk|lb|lbs|pound|pounds|gal|gallon|gallons|oz|ct)$/.test(t);
+}
+function guideHeaderMap(row){
+  var map={}, score=0, c, h;
+  for(c=0;c<row.length;c++){
+    h=guideCellStr(row[c]).toLowerCase().replace(/\s+/g,' ');
+    if(!h)continue;
+    if(/distributor\s*code|item\s*#|product\s*(#|code)|item\s*(no\.?|number)/.test(h)){ if(map.code===undefined){ map.code=c; score+=2; } continue; }
+    if(/^price/.test(h)){ if(map.price===undefined){ map.price=c; score+=2; } continue; }
+    if(h==='inventory'||h==='quantity'||/on\s*hand/.test(h)){ if(map.qty===undefined){ map.qty=c; score+=2; } continue; }
+    if(h==='value'){ if(map.value===undefined)map.value=c; continue; }
+    if(/usage/.test(h)){ if(map.usage===undefined)map.usage=c; continue; }
+    if(h==='item'||h==='description'||/item\s*name|product\s*name/.test(h)){ if(map.name===undefined){ map.name=c; score+=2; } continue; }
+  }
+  return (score>=4&&map.code!==undefined&&map.price!==undefined)?{map:map,score:score}:null;
+}
+function guideRowsFromGrid(grid){
+  if(!grid||!grid.length)return {rows:[],error:'That sheet looks empty.'};
+  // Pass 1: the best header mapping anywhere in the sheet. Header rows
+  // can repeat between sections, and an early one can be mislabeled —
+  // the fullest mapping wins.
+  var best=null, r, hm;
+  for(r=0;r<grid.length;r++){ hm=guideHeaderMap(grid[r]); if(hm&&(!best||hm.score>best.score))best=hm; }
+  if(!best)return {rows:[],error:'Buddy could not find an item-number column and a price column together on that sheet.'};
+  var map=best.map;
+  var anchored={}; anchored[map.code]=1; anchored[map.price]=1;
+  if(map.qty!==undefined)anchored[map.qty]=1;
+  if(map.value!==undefined)anchored[map.value]=1;
+  if(map.usage!==undefined)anchored[map.usage]=1;
+  // Column shapes are read off the data rows themselves (the rows that
+  // carry an item number), so a mislabeled header cannot steer us wrong.
+  var dataRows=[];
+  for(r=0;r<grid.length;r++){ if(guideCode(grid[r][map.code])!=='')dataRows.push(grid[r]); }
+  var stats={};
+  function colStats(c){
+    if(stats[c])return stats[c];
+    var nums=0, units=0, packs=0, textLen=0, n=0, seen={}, i, v, s;
+    for(i=0;i<dataRows.length;i++){
+      v=dataRows[i][c]; s=guideCellStr(v);
+      if(s==='')continue;
+      n++; seen[s.toLowerCase()]=1;
+      if(typeof v==='number'||/^-?\d+(\.\d+)?$/.test(s.replace(/[$,]/g,'')))nums++;
+      if(guideUnitLike(s))units++;
+      if(/^\d/.test(s)&&/(oz|lb|ct|#|ml|g)\b/i.test(s))packs++;
+      textLen+=s.length;
+    }
+    var st={n:n,fracNum:n?nums/n:0,fracUnit:n?units/n:0,fracPack:n?packs/n:0,avgLen:n?textLen/n:0,distinct:n?Object.keys(seen).length/n:0};
+    stats[c]=st; return st;
+  }
+  var width=0;
+  for(r=0;r<grid.length;r++){ if(grid[r].length>width)width=grid[r].length; }
+  var freeCols=[];
+  for(var c0=0;c0<width;c0++){ if(!anchored[c0])freeCols.push(c0); }
+  var unitCol=null, packCol=null, nameCol=(map.name!==undefined?map.name:null);
+  freeCols.forEach(function(c){ var s=colStats(c); if(unitCol===null&&s.n>=3&&s.fracUnit>=0.6)unitCol=c; });
+  freeCols.forEach(function(c){ if(c===unitCol||c===nameCol)return; var s=colStats(c); if(packCol===null&&s.n>=3&&(s.fracNum>=0.5||s.fracPack>=0.5))packCol=c; });
+  var rest=freeCols.filter(function(c){ return c!==unitCol&&c!==packCol; });
+  rest=rest.filter(function(c){ var s=colStats(c); return !(s.n>=3&&s.distinct<=0.05); }); // a column that never changes is a site label
+  if(nameCol===null){
+    var bestLen=3.5;
+    rest.forEach(function(c){ var s=colStats(c); if(s.avgLen>bestLen){ bestLen=s.avgLen; nameCol=c; } });
+  }
+  if(nameCol===null)return {rows:[],error:'Buddy found item numbers and prices on that sheet, but no item-name column.'};
+  // Pass 2: walk the rows. A code already seen merges into its first row
+  // (blanks filled) and is flagged — a guide must never double an item.
+  var out=[], byKey={}, dupes=0;
+  for(r=0;r<grid.length;r++){
+    var row=grid[r];
+    if(guideHeaderMap(row))continue;
+    var code=guideCode(row[map.code]);
+    var name=guideCellStr(row[nameCol]).replace(/\s+/g,' ');
+    var price=guideMoney(row[map.price]);
+    var qty=(map.qty!==undefined)?guideNum(row[map.qty]):'';
+    if(!code&&!name)continue;
+    if(!code&&price===null&&qty==='')continue;
+    if(!code&&/^total/i.test(name))continue;
+    var packSize=0, packText='';
+    if(packCol!==null){
+      var pv=row[packCol], ps=guideCellStr(pv);
+      if(typeof pv==='number'&&isFinite(pv))packSize=pv;
+      else if(/^\d+(\.\d+)?$/.test(ps))packSize=Number(ps);
+      else if(ps){ packText=ps; var lm=ps.match(/^(\d+)/); if(lm)packSize=Number(lm[1]); }
+    }
+    var rec={code:code,description:name,packSize:packSize,packText:packText,qty:qty,
+      unit:(unitCol!==null)?guideUnit(row[unitCol]):'cases',
+      price:price,dup:false,priceWarn:(price!==null&&price>5000)};
+    var key=code?('c:'+code.toUpperCase()):('n:'+name.toLowerCase());
+    var ex=byKey[key];
+    if(ex){
+      ex.dup=true; dupes++;
+      if(ex.price===null&&rec.price!==null)ex.price=rec.price;
+      if(ex.qty===''&&rec.qty!=='')ex.qty=rec.qty;
+      if(!ex.packSize&&rec.packSize)ex.packSize=rec.packSize;
+      if(!ex.packText&&rec.packText)ex.packText=rec.packText;
+      if(rec.priceWarn)ex.priceWarn=true;
+      continue;
+    }
+    byKey[key]=rec; out.push(rec);
+  }
+  return {rows:out,dupes:dupes};
+}
+function guideParseCSV(text){
+  text=String(text||'');
+  var firstLine=(text.split(/\r?\n/)[0]||'');
+  var delim=(firstLine.indexOf('\t')>=0&&firstLine.indexOf(',')<0)?'\t':',';
+  var rows=[], row=[], cur='', inQ=false, i, ch;
+  for(i=0;i<text.length;i++){
+    ch=text[i];
+    if(inQ){
+      if(ch==='"'){ if(text[i+1]==='"'){ cur+='"'; i++; } else inQ=false; }
+      else cur+=ch;
+    }
+    else if(ch==='"')inQ=true;
+    else if(ch===delim){ row.push(cur); cur=''; }
+    else if(ch==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+    else if(ch==='\r'){ /* skip */ }
+    else cur+=ch;
+  }
+  if(cur!==''||row.length){ row.push(cur); rows.push(row); }
+  return rows;
+}
+(function(){
+  window.guideAddRow=function(row){
+    if(typeof scanSession==='undefined'||!scanSession||scanSession.mode!=='bulk')return 'skip';
+    var code=String(row.code||'').trim();
+    var name=String(row.description||'').trim();
+    if(!code&&!name)return 'skip';
+    var ex=null, i, e;
+    for(i=0;i<scanSession.entries.length;i++){
+      e=scanSession.entries[i];
+      if(code&&e.code===code){ ex=e; break; }
+      if(!code&&!e.code&&e.name&&name&&e.name.toLowerCase()===name.toLowerCase()){ ex=e; break; }
+    }
+    if(ex){
+      if(!ex.name&&name)ex.name=name;
+      if((ex.price===undefined||ex.price===null)&&row.price!=null)ex.price=row.price;
+      if(!ex.packSize&&row.packSize)ex.packSize=row.packSize;
+      if(!ex.packText&&row.packText)ex.packText=row.packText;
+      return 'have';
+    }
+    scanSession.entries.push({
+      code:code, name:name, packSize:Number(row.packSize||0), packText:row.packText||'',
+      count:(row.qty===''||row.qty===undefined)?0:(Number(row.qty)||0),
+      warn:false, location:'', unit:row.unit||'cases', cat:'Food',
+      report:true, guide:true,
+      price:(row.price===undefined?null:row.price),
+      dup:!!row.dup, priceWarn:!!row.priceWarn
+    });
+    return 'added';
+  };
+
+  var XLSX_SRC='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  function loadXlsx(){
+    return new Promise(function(resolve,reject){
+      if(window.XLSX){ resolve(window.XLSX); return; }
+      var s=document.createElement('script');
+      s.src=XLSX_SRC;
+      s.onload=function(){ window.XLSX?resolve(window.XLSX):reject(new Error('the spreadsheet reader did not load')); };
+      s.onerror=function(){ reject(new Error('the spreadsheet reader could not load')); };
+      document.head.appendChild(s);
+    });
+  }
+
+  window.startGuideLoad=async function(event){
+    var files=Array.prototype.slice.call((event.target&&event.target.files)||[]);
+    event.target.value='';
+    if(!files.length)return;
+    var st=document.getElementById('guideLoadStatus');
+    var box=document.getElementById('guideSheetBox');
+    function say(msg){ if(st)st.textContent=msg; }
+    try{
+      var sheets=[];
+      for(var f=0;f<files.length;f++){
+        var file=files[f];
+        if(/\.(csv|tsv|txt)$/i.test(file.name||'')||/^text\//.test(file.type||'')){
+          var text=await file.text();
+          sheets.push({name:(file.name||'Sheet').replace(/\.(csv|tsv|txt)$/i,''),grid:guideParseCSV(text)});
+        }else{
+          say('Opening '+file.name+'…');
+          var XLSX=await loadXlsx();
+          var buf=await file.arrayBuffer();
+          var wb=XLSX.read(buf,{type:'array'});
+          wb.SheetNames.forEach(function(nm){
+            var grid=XLSX.utils.sheet_to_json(wb.Sheets[nm],{header:1,raw:true,defval:null});
+            sheets.push({name:nm,grid:grid});
+          });
+        }
+      }
+      if(!sheets.length){ say('Nothing readable in that file. An Excel (.xlsx) or CSV file works best.'); return; }
+      window._guideSheets=sheets;
+      if(sheets.length===1){ window.guideLoadSheet(0); return; }
+      var h='<p class="small" style="margin:6px 0">That file has '+sheets.length+' sheets. Load one at a time — check and file each list before the next:</p>';
+      sheets.forEach(function(sh,i){
+        var cnt=0;
+        try{ cnt=guideRowsFromGrid(sh.grid).rows.length; }catch(e){}
+        h+='<button type="button" class="secondary" style="margin:0 6px 6px 0" onclick="guideLoadSheet('+i+')">'+esc(sh.name)+(cnt?' ('+cnt+' items)':'')+'</button>';
+      });
+      if(box)box.innerHTML=h;
+      say('Pick a sheet above to load it into the review list.');
+    }catch(err){
+      say('Guide Load hit a snag: '+((err&&err.message)?err.message:err)+'. If this is an Excel file, the spreadsheet reader needs internet the first time it is used — or save the sheet as a CSV file and pick that instead. Nothing was lost.');
+    }
+  };
+
+  window.guideLoadSheet=function(idx){
+    var sheets=window._guideSheets||[];
+    var sh=sheets[idx];
+    var st=document.getElementById('guideLoadStatus');
+    var bstatus=document.getElementById('bulkStatus');
+    function say(msg){ if(st)st.textContent=msg; if(bstatus)bstatus.textContent=msg; }
+    if(!sh)return;
+    try{
+      if(typeof scanSession!=='undefined'&&scanSession&&scanSession.mode==='eom'){ alert('Finish or cancel the End of Month count first, then load your guide.'); return; }
+      if(!scanSession||scanSession.mode!=='bulk'){ startBulkScan(); }
+      var res=guideRowsFromGrid(sh.grid);
+      if(res.error||!res.rows.length){ say('No items loaded from "'+sh.name+'". '+(res.error||'Nothing on that sheet looked like an item row.')); return; }
+      var added=0, have=0;
+      res.rows.forEach(function(r){ var w=window.guideAddRow(r); if(w==='added')added++; else if(w==='have')have++; });
+      if(typeof renderScanSession==='function')renderScanSession();
+      var priced=res.rows.filter(function(r){ return r.price!=null; }).length;
+      say('Guide load done: '+added+' new item'+(added===1?'':'s')+' from "'+sh.name+'" in the list below'
+        +(have?(', '+have+' already in the list — left as they were'):'')
+        +(res.dupes?(', '+res.dupes+' line'+(res.dupes===1?'':'s')+' appeared twice in the file — the first was kept and marked'):'')
+        +'. Check every line — fix any name, price or count — then tap File All These Cases. Counts ADD to what is already in Buddy, so a first load works best into an empty list.'
+        +(priced&&!(typeof pricesOn==='function'&&pricesOn())?(' '+priced+' prices came in with the file and will save on the items — turn on Prices & Values in My Account to see them.'):''));
+      var bp=document.getElementById('bulkPanel');
+      if(bp&&bp.scrollIntoView)bp.scrollIntoView({block:'start'});
+    }catch(err){
+      say('Guide Load hit a snag: '+((err&&err.message)?err.message:err));
+    }
+  };
+
+  function addGuideLoadUI(){
+    if(document.getElementById('guideLoadBox'))return;
+    var host=document.getElementById('reportLoadBox');
+    var flb=document.getElementById('firstLoadBox');
+    var bp=document.getElementById('bulkPanel');
+    var parent=host?host.parentElement:(flb?flb.parentElement:(bp?bp.parentElement:null));
+    if(!parent)return;
+    var div=document.createElement('div');
+    div.id='guideLoadBox';
+    div.style.marginTop='14px'; div.style.borderTop='1px solid #eee'; div.style.paddingTop='12px';
+    div.innerHTML='<h3 style="margin:4px 0">📗 Load from a price-list spreadsheet</h3>'
+      +'<p class="small" style="margin-top:4px">For an inventory guide or price list your office keeps in Excel. Buddy reads the columns — item, item #, price, count — into the list below; you check every line before anything saves. Barcodes are not in these files: Buddy learns each one the first time you scan that box.</p>'
+      +'<button type="button" class="secondary" onclick="document.getElementById(\'guideLoadInput\').click()">📗 Pick a spreadsheet (.xlsx or .csv)</button>'
+      +'<input id="guideLoadInput" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt" class="hidden" onchange="startGuideLoad(event)">'
+      +'<div id="guideSheetBox" style="margin-top:6px"></div>'
+      +'<div id="guideLoadStatus" class="small" style="margin-top:6px"></div>';
+    if(host&&host.nextSibling)parent.insertBefore(div,host.nextSibling);
+    else if(host)parent.appendChild(div);
+    else if(flb&&flb.nextSibling)parent.insertBefore(div,flb.nextSibling);
+    else parent.appendChild(div);
+  }
+  addGuideLoadUI();
+  if(typeof applyPriceVisibility==='function')applyPriceVisibility();
 })();
 </script>
 

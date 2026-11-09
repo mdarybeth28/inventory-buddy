@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inventory Buddy — V28.25.2</title>
+<title>Inventory Buddy — V28.25.3</title>
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -360,7 +360,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 28.25.2</div>
+<div class="card small no-print">Version 28.25.3</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1031,12 +1031,12 @@ async function visionLabelInfo(file){
 // not read. Stashed the moment a read starts - the file inputs get
 // their value cleared at the end of readBoxLabel, which would
 // otherwise lose the photo. This device only, never the account.
-// V28.25.2 DIAGNOSTIC build: the send door is SHOWN again so the
-// owner can run the instrumented send - a failed send now names the
-// step it stopped at and shows the server's own words on screen, so
-// we can see exactly where the chain breaks. This is NOT the public
-// un-hide: the door opens for real only in the fix build, once the
-// send is field-proven end to end.
+// V28.25.3: the send door is LIVE for everyone. The whole chain
+// was field-proven end to end on 2026-11-09: the photo uploads,
+// the note row lands, the mail door signs its 7-day link, and the
+// email arrives with the photo readable. A failed send still names
+// the step it stopped at and shows the server's own words - that
+// wording earned its keep finding the break, so it stays.
 var BL_HELP_SEND_ON = true;
 var blHelpState = { file: null, hint: '' };
 function stashBlHelpPhoto(file, hint) {
@@ -1093,7 +1093,7 @@ function blHelpPrepPhoto(file) {
 // explanation, an optional note, and the one send button. Rendered
 // only when a read has finished and failed - never mid-read.
 function renderBlHelpFallback() {
-  if (!BL_HELP_SEND_ON) return; // V28.25.2: gate kept; the flag above decides
+  if (!BL_HELP_SEND_ON) return; // V28.25.3: gate kept; the flag above decides
   var area = document.getElementById('boxLabelHelp');
   if (!area) return;
   area.innerHTML = '<div class="card" style="margin-top:10px"><b>Still stuck on this label?</b>' +
@@ -1106,7 +1106,7 @@ function renderBlHelpFallback() {
 // The same door, as one small link under a label review that DID
 // read - for when the read landed but still looks wrong.
 function renderBlHelpLink() {
-  if (!BL_HELP_SEND_ON) return; // V28.25.2: gate kept; the flag above decides
+  if (!BL_HELP_SEND_ON) return; // V28.25.3: gate kept; the flag above decides
   var area = document.getElementById('boxLabelHelp');
   if (!area) return;
   area.innerHTML = '<p class="small" style="margin-top:8px"><a href="#" id="blHelpLink" onclick="renderBlHelpFallback();return false;">Photo still doesn\u2019t look right? Send it to Mary.</a></p>';
@@ -1122,16 +1122,16 @@ function sendBlPhotoToMary() {
   var noteEl = document.getElementById('blHelpNote');
   var fail = function (e) {
     if (btn) { btn.disabled = false; btn.textContent = '📩 Send this photo to Mary'; }
-    // V28.25.2 diagnostic: name the step the chain stopped at and show
-    // the server's own words, so the break point is visible on screen
+    // Name the step the chain stopped at and show the server's own
+    // words, so a failure tells the truth about where it broke
     // instead of hiding behind one generic line.
     var step = (e && e.__blStep) || 'send';
     var words = '';
     if (e) words = (e.message || ((e.error && e.error.message) ? e.error.message : '') || String(e));
-    if (msg) msg.textContent = 'Didn\u2019t send \u2014 stopped at ' + step + ': ' + words + ' (Your photo is still right here \u2014 try again in a moment.)';
+    if (msg) msg.textContent = 'That didn\u2019t send \u2014 it stopped at ' + step + ' (' + words + '). Your photo is still right here \u2014 try again in a moment, and if it keeps happening, tell Mary what it said.';
     try { console.error('Send label photo to Mary failed at step "' + step + '"', e); } catch (x) {}
   };
-  // V28.25.2 diagnostic wiring: supabase-js RESOLVES {error} instead
+  // V28.25.3 step-tagging wiring: supabase-js RESOLVES {error} instead
   // of rejecting, so after each step, chk(label) turns a resolved
   // error into a rejection ON THE SPOT, tagged with that step's own
   // label - each step's label hangs directly under its own call, so

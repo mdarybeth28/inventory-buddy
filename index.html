@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inventory Buddy — V28.25.1</title>
+<title>Inventory Buddy — V28.25.2</title>
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -360,7 +360,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 28.25.1</div>
+<div class="card small no-print">Version 28.25.2</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1031,12 +1031,13 @@ async function visionLabelInfo(file){
 // not read. Stashed the moment a read starts - the file inputs get
 // their value cleared at the end of readBoxLabel, which would
 // otherwise lose the photo. This device only, never the account.
-// V28.25.1: the send door is HIDDEN until the send is field-proven
-// end to end (the field test on 2026-11-09 showed the email hop
-// failing inside the send-help-photo function). Nobody may tap a
-// button that does not work yet. When the fixed function is proven,
-// flip BL_HELP_SEND_ON to true - that one line restores the door.
-var BL_HELP_SEND_ON = false;
+// V28.25.2 DIAGNOSTIC build: the send door is SHOWN again so the
+// owner can run the instrumented send - a failed send now names the
+// step it stopped at and shows the server's own words on screen, so
+// we can see exactly where the chain breaks. This is NOT the public
+// un-hide: the door opens for real only in the fix build, once the
+// send is field-proven end to end.
+var BL_HELP_SEND_ON = true;
 var blHelpState = { file: null, hint: '' };
 function stashBlHelpPhoto(file, hint) {
   blHelpState = { file: file || null, hint: hint || '' };
@@ -1092,7 +1093,7 @@ function blHelpPrepPhoto(file) {
 // explanation, an optional note, and the one send button. Rendered
 // only when a read has finished and failed - never mid-read.
 function renderBlHelpFallback() {
-  if (!BL_HELP_SEND_ON) return; // V28.25.1: door hidden until the send is field-proven
+  if (!BL_HELP_SEND_ON) return; // V28.25.2: gate kept; the flag above decides
   var area = document.getElementById('boxLabelHelp');
   if (!area) return;
   area.innerHTML = '<div class="card" style="margin-top:10px"><b>Still stuck on this label?</b>' +
@@ -1105,7 +1106,7 @@ function renderBlHelpFallback() {
 // The same door, as one small link under a label review that DID
 // read - for when the read landed but still looks wrong.
 function renderBlHelpLink() {
-  if (!BL_HELP_SEND_ON) return; // V28.25.1: door hidden until the send is field-proven
+  if (!BL_HELP_SEND_ON) return; // V28.25.2: gate kept; the flag above decides
   var area = document.getElementById('boxLabelHelp');
   if (!area) return;
   area.innerHTML = '<p class="small" style="margin-top:8px"><a href="#" id="blHelpLink" onclick="renderBlHelpFallback();return false;">Photo still doesn\u2019t look right? Send it to Mary.</a></p>';
@@ -1121,8 +1122,40 @@ function sendBlPhotoToMary() {
   var noteEl = document.getElementById('blHelpNote');
   var fail = function (e) {
     if (btn) { btn.disabled = false; btn.textContent = '📩 Send this photo to Mary'; }
-    if (msg) msg.textContent = 'That didn\u2019t send. Your photo is still right here \u2014 try again in a moment.';
-    try { console.error('Send label photo to Mary failed', e); } catch (x) {}
+    // V28.25.2 diagnostic: name the step the chain stopped at and show
+    // the server's own words, so the break point is visible on screen
+    // instead of hiding behind one generic line.
+    var step = (e && e.__blStep) || 'send';
+    var words = '';
+    if (e) words = (e.message || ((e.error && e.error.message) ? e.error.message : '') || String(e));
+    if (msg) msg.textContent = 'Didn\u2019t send \u2014 stopped at ' + step + ': ' + words + ' (Your photo is still right here \u2014 try again in a moment.)';
+    try { console.error('Send label photo to Mary failed at step "' + step + '"', e); } catch (x) {}
+  };
+  // V28.25.2 diagnostic wiring: supabase-js RESOLVES {error} instead
+  // of rejecting, so after each step, chk(label) turns a resolved
+  // error into a rejection ON THE SPOT, tagged with that step's own
+  // label - each step's label hangs directly under its own call, so
+  // the failing step names itself. (A single shared rejection slot
+  // downstream would stamp the NEXT step's label on it instead.)
+  var chk = function (label) {
+    return function (r) {
+      if (r && r.error) {
+        var e = r.error;
+        var words = (e.message || ((e.error && e.error.message) ? e.error.message : '') || String(e));
+        var err = new Error(words);
+        err.__blStep = label;
+        err.__blOrig = e;
+        throw err;
+      }
+      return r;
+    };
+  };
+  // A rejection arriving from the getUser() await (it throws rather
+  // than resolving {error}) has no label yet - give it the first
+  // step's name.
+  var tagUser = function (e) {
+    if (e && !e.__blStep) { try { e.__blStep = 'get user'; } catch (x) {} }
+    throw e;
   };
   if (!blHelpState.file) {
     if (msg) msg.textContent = 'That photo isn\u2019t in hand anymore \u2014 take it once more, let it try to read, then tap send.';
@@ -1138,19 +1171,16 @@ function sendBlPhotoToMary() {
       if (!user) throw new Error('Not signed in');
       var email = user.email ? String(user.email).toLowerCase() : null;
       var path = user.id + '/' + Date.now() + '.jpg';
-      return Promise.resolve(inventoryBuddySupabase.storage.from('help-photos').upload(path, blob, { contentType: (blob && blob.type) || 'image/jpeg' })).then(function (r) {
-        if (r && r.error) throw r.error;
+      return Promise.resolve(inventoryBuddySupabase.storage.from('help-photos').upload(path, blob, { contentType: (blob && blob.type) || 'image/jpeg' })).then(chk('upload photo')).then(function () {
         return inventoryBuddySupabase.from('help_photos').insert({ user_id: user.id, user_email: email, item_hint: hint || null, note: note || null, photo_path: path });
-      }).then(function (r) {
-        if (r && r.error) throw r.error;
+      }).then(chk('save note row')).then(function () {
         return inventoryBuddySupabase.functions.invoke('send-help-photo', { body: { photo_path: path, item_hint: hint, note: note, user_email: email } });
-      }).then(function (inv) {
-        if (inv && inv.error) throw inv.error;
+      }).then(chk('email Mary')).then(function () {
         clearBlHelp();
         var area = document.getElementById('boxLabelHelp');
         if (area) area.innerHTML = '<div class="card" style="margin-top:10px"><b>Sent to Mary 💚</b><p class="small">She\u2019ll take a look at this label.</p></div>';
       });
-    });
+    }, tagUser);
   }).catch(fail);
 }
 async function readBoxLabel(event){  const file=event.target.files&&event.target.files[0];  if(!file)return;  const status=document.getElementById('boxLabelStatus');  const box=document.getElementById('boxLabelResult');  box.innerHTML='';  clearBlHelp(); stashBlHelpPhoto(file,'');  let capNote=false;  status.textContent='Reading your label with the new reader…';  try{   let vi=await visionLabelInfo(file);   if(vi&&(!vi.code||!vi.description)){ try{ status.textContent='That read looks thin - trying the photo turned around...'; const rf2=await rotateImage180(file); const vi2=await visionLabelInfo(rf2); if(vi2)vi=mergeVisionLabel(vi,vi2); }catch(e2){} }   if(vi){ const qc=await qrCodeFromPhoto(file); if(qc&&qc!==vi.code){vi.code=qc; vi.codeWarn=false; vi.qrUsed=true;} renderBoxLabelResult(vi); status.textContent='Label read with the new reader — check the fields, fix anything wrong, then save.'; if(!vi.description&&vi.code)status.textContent='The new reader got the item code but could not read the name - type the name in, then save.'; if(vi.qrUsed)status.textContent+=' The label QR code gave the item number.'; stashBlHelpPhoto(file,((vi.code||'')+' '+(vi.description||'')).trim()); renderBlHelpLink(); event.target.value=''; return; }  }catch(ve){ if(ve&&ve.cap)capNote=true; }  try{   const r=await ocrFile(file,1,1,status);   let info=extractBoxLabelInfo(r.text); if(!labelNameSane(info.description)||(!info.code&&!info.packSize)){status.textContent='That read looks incomplete - trying the photo turned around...'; const rf=await rotateImage180(file); const r2=await ocrFile(rf,1,1,status); const info2=extractBoxLabelInfo(r2.text); info=mergeLabelInfo(info,info2); if(!labelNameSane(info.description)||(!info.code&&!info.packSize)){status.textContent='Still thin - trying the photo sideways...'; const sf=await rotateImage90(file); const r3=await ocrFile(sf,1,1,status); info=mergeLabelInfo(info,extractBoxLabelInfo(r3.text));}}   const qc3=await qrCodeFromPhoto(file); if(qc3&&qc3!==info.code){info.code=qc3; info.codeWarn=false; info.qrUsed=true;} renderBoxLabelResult(info);   status.textContent=(info.code||info.description)?'Label read with the basic reader — check the fields, fix anything wrong, then save.':'Could not read the label clearly. Try a closer, straight-on photo with the label filling the picture.'; stashBlHelpPhoto(file,((info.code||'')+' '+(info.description||'')).trim()); if(info.code||info.description)renderBlHelpLink(); else renderBlHelpFallback();  if(!info.description&&info.code)status.textContent='I read the item code but could not read the name - type the name in, then save.'; if(info.qrUsed)status.textContent+=' The label QR code gave the item number.'; if(capNote&&(info.code||info.description))status.textContent+=' (The new reader has done its reads for today, so the basic reader read this one.)'; }catch(e){status.textContent='Could not read the label: '+((e&&e.message)?e.message:e); if(!box.querySelector('[data-rec]')&&box.innerHTML.indexOf('Label details')<0)renderBlHelpFallback();}  event.target.value=''; } function renderBoxLabelResult(info){  const box=document.getElementById('boxLabelResult');  let blKnownUpc=String((info&&info.upc)||'');  if(!blKnownUpc&&info&&info.code){ try{ const km=(typeof itemsWithCode==='function')?itemsWithCode(info.code):[]; if(km.length&&km[0].upc)blKnownUpc=String(km[0].upc); }catch(e){} }  box.innerHTML='<div class="card" style="margin-top:10px"><b>Label details</b><p class="small">Check and fix anything the camera misread, then save.</p>'+boxLabelMatchNote(info)+'<label>Item code</label><input id="blCode" value="'+esc(info.code)+'" oninput="blCodeWarnCheck()">'+'<div id="blCodeWarn" class="small" style="display:'+((info.codeWarn||codeLooksRisky(info.code))?'block':'none')+';color:#8a6d00">⚠ Double-check this number against the label before you save. The item number sits beside ITEM CODE, ITEM NO or A# on the label — long numbers are usually the school account or the stripes barcode. You can still save: plenty of real item numbers are not 6 digits.</div>'  +'<label>Item name</label><input id="blName" value="'+esc(info.description)+'">'  +'<label>Barcode (the stripes number — optional)</label><input id="blUpc" inputmode="numeric" value="'+esc(blKnownUpc)+'" placeholder="The number printed under the stripes — saved with this item">'  +'<label>Pack size (items per case)</label><input id="blPack" type="number" min="0" step="1" value="'+(info.packSize||'')+'" placeholder="Example: 100">'  +'<label>Unit</label><select id="blUnit"><option>cases</option><option>crates</option><option>boxes</option><option>cans</option><option>bags</option><option>packs</option><option>each</option><option>pounds</option><option>gallons</option></select>'  +'<label>Quantity on hand</label><input id="blQty" type="number" min="0" step="0.01" value="1">'  +'<label>Category</label><select id="LocationCategory"><option>Food</option><option>Paper</option><option>Cleaning</option><option>Beverage</option><option>Supplies</option><option>Other</option></select>'  +'<label>Location</label><select id="blLocation" onchange="boxLocationChanged(this)">'+locationOptionsHTML(localStorage.getItem('ibBlLocation')||'')+'</select>'  +'<div class="row" style="margin-top:10px;flex-wrap:wrap"><button type="button" class="primary" onclick="saveBoxLabelItem()">💾 Save to Inventory</button></div></div>'; } // READER-FIX note for saveBoxLabelItem below: when the review screen showed a

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inventory Buddy — V28.25</title>
+<title>Inventory Buddy — V28.25.1</title>
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -360,7 +360,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 28.25</div>
+<div class="card small no-print">Version 28.25.1</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1031,6 +1031,12 @@ async function visionLabelInfo(file){
 // not read. Stashed the moment a read starts - the file inputs get
 // their value cleared at the end of readBoxLabel, which would
 // otherwise lose the photo. This device only, never the account.
+// V28.25.1: the send door is HIDDEN until the send is field-proven
+// end to end (the field test on 2026-11-09 showed the email hop
+// failing inside the send-help-photo function). Nobody may tap a
+// button that does not work yet. When the fixed function is proven,
+// flip BL_HELP_SEND_ON to true - that one line restores the door.
+var BL_HELP_SEND_ON = false;
 var blHelpState = { file: null, hint: '' };
 function stashBlHelpPhoto(file, hint) {
   blHelpState = { file: file || null, hint: hint || '' };
@@ -1086,6 +1092,7 @@ function blHelpPrepPhoto(file) {
 // explanation, an optional note, and the one send button. Rendered
 // only when a read has finished and failed - never mid-read.
 function renderBlHelpFallback() {
+  if (!BL_HELP_SEND_ON) return; // V28.25.1: door hidden until the send is field-proven
   var area = document.getElementById('boxLabelHelp');
   if (!area) return;
   area.innerHTML = '<div class="card" style="margin-top:10px"><b>Still stuck on this label?</b>' +
@@ -1098,6 +1105,7 @@ function renderBlHelpFallback() {
 // The same door, as one small link under a label review that DID
 // read - for when the read landed but still looks wrong.
 function renderBlHelpLink() {
+  if (!BL_HELP_SEND_ON) return; // V28.25.1: door hidden until the send is field-proven
   var area = document.getElementById('boxLabelHelp');
   if (!area) return;
   area.innerHTML = '<p class="small" style="margin-top:8px"><a href="#" id="blHelpLink" onclick="renderBlHelpFallback();return false;">Photo still doesn\u2019t look right? Send it to Mary.</a></p>';

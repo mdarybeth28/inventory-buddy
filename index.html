@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inventory Buddy — V28.25.3</title>
+<title>Inventory Buddy — V28.26</title>
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -360,7 +360,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 28.25.3</div>
+<div class="card small no-print">Version 28.26</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1031,21 +1031,77 @@ async function visionLabelInfo(file){
 // not read. Stashed the moment a read starts - the file inputs get
 // their value cleared at the end of readBoxLabel, which would
 // otherwise lose the photo. This device only, never the account.
-// V28.25.3: the send door is LIVE for everyone. The whole chain
-// was field-proven end to end on 2026-11-09: the photo uploads,
-// the note row lands, the mail door signs its 7-day link, and the
-// email arrives with the photo readable. A failed send still names
-// the step it stopped at and shows the server's own words - that
-// wording earned its keep finding the break, so it stays.
+// V28.26: the send door now carries the FULL read with the photo -
+// everything the reader managed to get (code, name, pack size, the
+// stripes barcode, its unsure flags), not just the code + name
+// hint - and the mail door also sends the pilot her own copy of
+// the read + photo link, so she can match the read to the right
+// photo (Jessica's ask, 2026-11-09). The chain underneath is the
+// V28.25.3 one, field-proven end to end on 2026-11-09: the photo
+// uploads, the note row lands, the mail door signs its 7-day link,
+// and the email arrives with the photo readable. A failed send
+// still names the step it stopped at and shows the server's own
+// words - that wording earned its keep finding the break, so it
+// stays.
 var BL_HELP_SEND_ON = true;
-var blHelpState = { file: null, hint: '' };
-function stashBlHelpPhoto(file, hint) {
-  blHelpState = { file: file || null, hint: hint || '' };
+var blHelpState = { file: null, hint: '', read: null };
+function stashBlHelpPhoto(file, hint, read) {
+  blHelpState = { file: file || null, hint: hint || '', read: read || null };
 }
 function clearBlHelp() {
   var area = document.getElementById('boxLabelHelp');
   if (area) area.innerHTML = '';
-  blHelpState = { file: null, hint: '' };
+  blHelpState = { file: null, hint: '', read: null };
+}
+// V28.26: the FULL read behind the current label, kept beside the
+// photo so a send can carry everything the reader managed to get -
+// code, name, pack size, the stripes barcode, the QR flag, the
+// code-warning flag, and whatever it flagged as unsure - not just
+// the code + name hint. Built from whichever reader finished (the
+// new vision reader or the basic OCR reader); null when the read
+// got nothing at all, and then a send behaves exactly as before.
+function blHelpReadFrom(info, reader) {
+  if (!info) return null;
+  var code = String(info.code || '');
+  var desc = String(info.description || '');
+  var pack = Number(info.packSize || 0) || 0;
+  var upc = String(info.upc || '');
+  if (!code && !desc && !pack && !upc) return null;
+  var unsure = [];
+  if (Array.isArray(info.unsure)) {
+    info.unsure.forEach(function (u) { var s = String(u || ''); if (s && unsure.indexOf(s) < 0) unsure.push(s); });
+  }
+  var codeWarn = !!info.codeWarn;
+  try { if (code && typeof codeLooksRisky === 'function' && codeLooksRisky(code)) codeWarn = true; } catch (e) {}
+  if (codeWarn && unsure.indexOf('code') < 0) unsure.push('code');
+  if (!code && unsure.indexOf('code') < 0) unsure.push('code');
+  if (!desc && unsure.indexOf('description') < 0) unsure.push('description');
+  return {
+    code: code, description: desc, packSize: pack,
+    packText: String(info.packText || ''), upc: upc,
+    reader: reader || String(info.reader || ''),
+    qrUsed: !!info.qrUsed, codeWarn: codeWarn, unsure: unsure
+  };
+}
+// The same read as plain lines of text - this is what rides along
+// in the send payload (read_summary) and lands in both emails:
+// Mary's, and the pilot's own copy.
+function blHelpReadSummary(read) {
+  if (!read) return '';
+  var lines = [];
+  lines.push('Item code: ' + (read.code || '(the reader did not get it)'));
+  lines.push('Item name: ' + (read.description || '(the reader did not get it)'));
+  if (read.packSize || read.packText) lines.push('Pack size: ' + (read.packSize ? String(read.packSize) : '') + (read.packText ? (read.packSize ? ' (' + read.packText + ')' : read.packText) : ''));
+  if (read.upc) lines.push('Barcode (the stripes number): ' + read.upc);
+  if (read.reader) lines.push('Read by: ' + (read.reader === 'vision' ? 'the new reader' : (read.reader === 'ocr' ? 'the basic reader' : read.reader)));
+  if (read.qrUsed) lines.push('The label QR code gave the item number.');
+  if (read.unsure && read.unsure.length) {
+    var names = { code: 'the item code', description: 'the item name', packSize: 'the pack size', barcode: 'the barcode', upc: 'the barcode' };
+    var parts = [];
+    read.unsure.forEach(function (u) { parts.push(names[u] || String(u)); });
+    lines.push('Not sure about: ' + parts.join(', ') + ' - double-check those against the label.');
+  }
+  return lines.join('\n');
 }
 // Shrink to a 1600px long edge, JPEG 0.85, like Pet Keeper does - a
 // smaller photo uploads faster and Mary can still read every word.
@@ -1093,7 +1149,7 @@ function blHelpPrepPhoto(file) {
 // explanation, an optional note, and the one send button. Rendered
 // only when a read has finished and failed - never mid-read.
 function renderBlHelpFallback() {
-  if (!BL_HELP_SEND_ON) return; // V28.25.3: gate kept; the flag above decides
+  if (!BL_HELP_SEND_ON) return; // V28.26: gate kept; the flag above decides
   var area = document.getElementById('boxLabelHelp');
   if (!area) return;
   area.innerHTML = '<div class="card" style="margin-top:10px"><b>Still stuck on this label?</b>' +
@@ -1106,7 +1162,7 @@ function renderBlHelpFallback() {
 // The same door, as one small link under a label review that DID
 // read - for when the read landed but still looks wrong.
 function renderBlHelpLink() {
-  if (!BL_HELP_SEND_ON) return; // V28.25.3: gate kept; the flag above decides
+  if (!BL_HELP_SEND_ON) return; // V28.26: gate kept; the flag above decides
   var area = document.getElementById('boxLabelHelp');
   if (!area) return;
   area.innerHTML = '<p class="small" style="margin-top:8px"><a href="#" id="blHelpLink" onclick="renderBlHelpFallback();return false;">Photo still doesn\u2019t look right? Send it to Mary.</a></p>';
@@ -1115,7 +1171,11 @@ function renderBlHelpLink() {
 // into the private help-photos bucket under the sender's own folder,
 // one row lands in help_photos saying who sent it and what the read
 // did get, then send-help-photo emails Mary a link that works for
-// 7 days. A failed send keeps everything in place to try again.
+// 7 days. V28.26: the invoke also carries the full read (the read
+// object plus its plain-text summary), so Mary's email shows
+// everything the reader got, and the function sends the sender her
+// own copy of the read + photo link too. A failed send keeps
+// everything in place to try again.
 function sendBlPhotoToMary() {
   var msg = document.getElementById('blHelpMsg');
   var btn = document.getElementById('blHelpSendBtn');
@@ -1131,7 +1191,7 @@ function sendBlPhotoToMary() {
     if (msg) msg.textContent = 'That didn\u2019t send \u2014 it stopped at ' + step + ' (' + words + '). Your photo is still right here \u2014 try again in a moment, and if it keeps happening, tell Mary what it said.';
     try { console.error('Send label photo to Mary failed at step "' + step + '"', e); } catch (x) {}
   };
-  // V28.25.3 step-tagging wiring: supabase-js RESOLVES {error} instead
+  // V28.26 step-tagging wiring: supabase-js RESOLVES {error} instead
   // of rejecting, so after each step, chk(label) turns a resolved
   // error into a rejection ON THE SPOT, tagged with that step's own
   // label - each step's label hangs directly under its own call, so
@@ -1165,6 +1225,7 @@ function sendBlPhotoToMary() {
   if (msg) msg.textContent = '';
   var note = noteEl ? String(noteEl.value || '').trim() : '';
   var hint = blHelpState.hint || '';
+  var readSummary = blHelpReadSummary(blHelpState.read);
   blHelpPrepPhoto(blHelpState.file).then(function (blob) {
     return inventoryBuddySupabase.auth.getUser().then(function (res) {
       var user = res && res.data && res.data.user;
@@ -1174,16 +1235,17 @@ function sendBlPhotoToMary() {
       return Promise.resolve(inventoryBuddySupabase.storage.from('help-photos').upload(path, blob, { contentType: (blob && blob.type) || 'image/jpeg' })).then(chk('upload photo')).then(function () {
         return inventoryBuddySupabase.from('help_photos').insert({ user_id: user.id, user_email: email, item_hint: hint || null, note: note || null, photo_path: path });
       }).then(chk('save note row')).then(function () {
-        return inventoryBuddySupabase.functions.invoke('send-help-photo', { body: { photo_path: path, item_hint: hint, note: note, user_email: email } });
-      }).then(chk('email Mary')).then(function () {
+        return inventoryBuddySupabase.functions.invoke('send-help-photo', { body: { photo_path: path, item_hint: hint, note: note, user_email: email, read_summary: readSummary, read: blHelpState.read || null } });
+      }).then(chk('email Mary')).then(function (res) {
+        var copySent = !!(res && res.data && res.data.copy_sent);
         clearBlHelp();
         var area = document.getElementById('boxLabelHelp');
-        if (area) area.innerHTML = '<div class="card" style="margin-top:10px"><b>Sent to Mary 💚</b><p class="small">She\u2019ll take a look at this label.</p></div>';
+        if (area) area.innerHTML = '<div class="card" style="margin-top:10px"><b>Sent to Mary 💚</b><p class="small">She\u2019ll take a look at this label.</p></div>' + (copySent ? '<p class="small">A copy of what the reader got is on its way to your email too, so you can match the read to this photo.</p>' : '');
       });
     }, tagUser);
   }).catch(fail);
 }
-async function readBoxLabel(event){  const file=event.target.files&&event.target.files[0];  if(!file)return;  const status=document.getElementById('boxLabelStatus');  const box=document.getElementById('boxLabelResult');  box.innerHTML='';  clearBlHelp(); stashBlHelpPhoto(file,'');  let capNote=false;  status.textContent='Reading your label with the new reader…';  try{   let vi=await visionLabelInfo(file);   if(vi&&(!vi.code||!vi.description)){ try{ status.textContent='That read looks thin - trying the photo turned around...'; const rf2=await rotateImage180(file); const vi2=await visionLabelInfo(rf2); if(vi2)vi=mergeVisionLabel(vi,vi2); }catch(e2){} }   if(vi){ const qc=await qrCodeFromPhoto(file); if(qc&&qc!==vi.code){vi.code=qc; vi.codeWarn=false; vi.qrUsed=true;} renderBoxLabelResult(vi); status.textContent='Label read with the new reader — check the fields, fix anything wrong, then save.'; if(!vi.description&&vi.code)status.textContent='The new reader got the item code but could not read the name - type the name in, then save.'; if(vi.qrUsed)status.textContent+=' The label QR code gave the item number.'; stashBlHelpPhoto(file,((vi.code||'')+' '+(vi.description||'')).trim()); renderBlHelpLink(); event.target.value=''; return; }  }catch(ve){ if(ve&&ve.cap)capNote=true; }  try{   const r=await ocrFile(file,1,1,status);   let info=extractBoxLabelInfo(r.text); if(!labelNameSane(info.description)||(!info.code&&!info.packSize)){status.textContent='That read looks incomplete - trying the photo turned around...'; const rf=await rotateImage180(file); const r2=await ocrFile(rf,1,1,status); const info2=extractBoxLabelInfo(r2.text); info=mergeLabelInfo(info,info2); if(!labelNameSane(info.description)||(!info.code&&!info.packSize)){status.textContent='Still thin - trying the photo sideways...'; const sf=await rotateImage90(file); const r3=await ocrFile(sf,1,1,status); info=mergeLabelInfo(info,extractBoxLabelInfo(r3.text));}}   const qc3=await qrCodeFromPhoto(file); if(qc3&&qc3!==info.code){info.code=qc3; info.codeWarn=false; info.qrUsed=true;} renderBoxLabelResult(info);   status.textContent=(info.code||info.description)?'Label read with the basic reader — check the fields, fix anything wrong, then save.':'Could not read the label clearly. Try a closer, straight-on photo with the label filling the picture.'; stashBlHelpPhoto(file,((info.code||'')+' '+(info.description||'')).trim()); if(info.code||info.description)renderBlHelpLink(); else renderBlHelpFallback();  if(!info.description&&info.code)status.textContent='I read the item code but could not read the name - type the name in, then save.'; if(info.qrUsed)status.textContent+=' The label QR code gave the item number.'; if(capNote&&(info.code||info.description))status.textContent+=' (The new reader has done its reads for today, so the basic reader read this one.)'; }catch(e){status.textContent='Could not read the label: '+((e&&e.message)?e.message:e); if(!box.querySelector('[data-rec]')&&box.innerHTML.indexOf('Label details')<0)renderBlHelpFallback();}  event.target.value=''; } function renderBoxLabelResult(info){  const box=document.getElementById('boxLabelResult');  let blKnownUpc=String((info&&info.upc)||'');  if(!blKnownUpc&&info&&info.code){ try{ const km=(typeof itemsWithCode==='function')?itemsWithCode(info.code):[]; if(km.length&&km[0].upc)blKnownUpc=String(km[0].upc); }catch(e){} }  box.innerHTML='<div class="card" style="margin-top:10px"><b>Label details</b><p class="small">Check and fix anything the camera misread, then save.</p>'+boxLabelMatchNote(info)+'<label>Item code</label><input id="blCode" value="'+esc(info.code)+'" oninput="blCodeWarnCheck()">'+'<div id="blCodeWarn" class="small" style="display:'+((info.codeWarn||codeLooksRisky(info.code))?'block':'none')+';color:#8a6d00">⚠ Double-check this number against the label before you save. The item number sits beside ITEM CODE, ITEM NO or A# on the label — long numbers are usually the school account or the stripes barcode. You can still save: plenty of real item numbers are not 6 digits.</div>'  +'<label>Item name</label><input id="blName" value="'+esc(info.description)+'">'  +'<label>Barcode (the stripes number — optional)</label><input id="blUpc" inputmode="numeric" value="'+esc(blKnownUpc)+'" placeholder="The number printed under the stripes — saved with this item">'  +'<label>Pack size (items per case)</label><input id="blPack" type="number" min="0" step="1" value="'+(info.packSize||'')+'" placeholder="Example: 100">'  +'<label>Unit</label><select id="blUnit"><option>cases</option><option>crates</option><option>boxes</option><option>cans</option><option>bags</option><option>packs</option><option>each</option><option>pounds</option><option>gallons</option></select>'  +'<label>Quantity on hand</label><input id="blQty" type="number" min="0" step="0.01" value="1">'  +'<label>Category</label><select id="LocationCategory"><option>Food</option><option>Paper</option><option>Cleaning</option><option>Beverage</option><option>Supplies</option><option>Other</option></select>'  +'<label>Location</label><select id="blLocation" onchange="boxLocationChanged(this)">'+locationOptionsHTML(localStorage.getItem('ibBlLocation')||'')+'</select>'  +'<div class="row" style="margin-top:10px;flex-wrap:wrap"><button type="button" class="primary" onclick="saveBoxLabelItem()">💾 Save to Inventory</button></div></div>'; } // READER-FIX note for saveBoxLabelItem below: when the review screen showed a
+async function readBoxLabel(event){  const file=event.target.files&&event.target.files[0];  if(!file)return;  const status=document.getElementById('boxLabelStatus');  const box=document.getElementById('boxLabelResult');  box.innerHTML='';  clearBlHelp(); stashBlHelpPhoto(file,'');  let capNote=false;  status.textContent='Reading your label with the new reader…';  try{   let vi=await visionLabelInfo(file);   if(vi&&(!vi.code||!vi.description)){ try{ status.textContent='That read looks thin - trying the photo turned around...'; const rf2=await rotateImage180(file); const vi2=await visionLabelInfo(rf2); if(vi2)vi=mergeVisionLabel(vi,vi2); }catch(e2){} }   if(vi){ const qc=await qrCodeFromPhoto(file); if(qc&&qc!==vi.code){vi.code=qc; vi.codeWarn=false; vi.qrUsed=true;} renderBoxLabelResult(vi); status.textContent='Label read with the new reader — check the fields, fix anything wrong, then save.'; if(!vi.description&&vi.code)status.textContent='The new reader got the item code but could not read the name - type the name in, then save.'; if(vi.qrUsed)status.textContent+=' The label QR code gave the item number.'; stashBlHelpPhoto(file,((vi.code||'')+' '+(vi.description||'')).trim(),blHelpReadFrom(vi,'vision')); renderBlHelpLink(); event.target.value=''; return; }  }catch(ve){ if(ve&&ve.cap)capNote=true; }  try{   const r=await ocrFile(file,1,1,status);   let info=extractBoxLabelInfo(r.text); if(!labelNameSane(info.description)||(!info.code&&!info.packSize)){status.textContent='That read looks incomplete - trying the photo turned around...'; const rf=await rotateImage180(file); const r2=await ocrFile(rf,1,1,status); const info2=extractBoxLabelInfo(r2.text); info=mergeLabelInfo(info,info2); if(!labelNameSane(info.description)||(!info.code&&!info.packSize)){status.textContent='Still thin - trying the photo sideways...'; const sf=await rotateImage90(file); const r3=await ocrFile(sf,1,1,status); info=mergeLabelInfo(info,extractBoxLabelInfo(r3.text));}}   const qc3=await qrCodeFromPhoto(file); if(qc3&&qc3!==info.code){info.code=qc3; info.codeWarn=false; info.qrUsed=true;} renderBoxLabelResult(info);   status.textContent=(info.code||info.description)?'Label read with the basic reader — check the fields, fix anything wrong, then save.':'Could not read the label clearly. Try a closer, straight-on photo with the label filling the picture.'; stashBlHelpPhoto(file,((info.code||'')+' '+(info.description||'')).trim(),blHelpReadFrom(info,'ocr')); if(info.code||info.description)renderBlHelpLink(); else renderBlHelpFallback();  if(!info.description&&info.code)status.textContent='I read the item code but could not read the name - type the name in, then save.'; if(info.qrUsed)status.textContent+=' The label QR code gave the item number.'; if(capNote&&(info.code||info.description))status.textContent+=' (The new reader has done its reads for today, so the basic reader read this one.)'; }catch(e){status.textContent='Could not read the label: '+((e&&e.message)?e.message:e); if(!box.querySelector('[data-rec]')&&box.innerHTML.indexOf('Label details')<0)renderBlHelpFallback();}  event.target.value=''; } function renderBoxLabelResult(info){  const box=document.getElementById('boxLabelResult');  let blKnownUpc=String((info&&info.upc)||'');  if(!blKnownUpc&&info&&info.code){ try{ const km=(typeof itemsWithCode==='function')?itemsWithCode(info.code):[]; if(km.length&&km[0].upc)blKnownUpc=String(km[0].upc); }catch(e){} }  box.innerHTML='<div class="card" style="margin-top:10px"><b>Label details</b><p class="small">Check and fix anything the camera misread, then save.</p>'+boxLabelMatchNote(info)+'<label>Item code</label><input id="blCode" value="'+esc(info.code)+'" oninput="blCodeWarnCheck()">'+'<div id="blCodeWarn" class="small" style="display:'+((info.codeWarn||codeLooksRisky(info.code))?'block':'none')+';color:#8a6d00">⚠ Double-check this number against the label before you save. The item number sits beside ITEM CODE, ITEM NO or A# on the label — long numbers are usually the school account or the stripes barcode. You can still save: plenty of real item numbers are not 6 digits.</div>'  +'<label>Item name</label><input id="blName" value="'+esc(info.description)+'">'  +'<label>Barcode (the stripes number — optional)</label><input id="blUpc" inputmode="numeric" value="'+esc(blKnownUpc)+'" placeholder="The number printed under the stripes — saved with this item">'  +'<label>Pack size (items per case)</label><input id="blPack" type="number" min="0" step="1" value="'+(info.packSize||'')+'" placeholder="Example: 100">'  +'<label>Unit</label><select id="blUnit"><option>cases</option><option>crates</option><option>boxes</option><option>cans</option><option>bags</option><option>packs</option><option>each</option><option>pounds</option><option>gallons</option></select>'  +'<label>Quantity on hand</label><input id="blQty" type="number" min="0" step="0.01" value="1">'  +'<label>Category</label><select id="LocationCategory"><option>Food</option><option>Paper</option><option>Cleaning</option><option>Beverage</option><option>Supplies</option><option>Other</option></select>'  +'<label>Location</label><select id="blLocation" onchange="boxLocationChanged(this)">'+locationOptionsHTML(localStorage.getItem('ibBlLocation')||'')+'</select>'  +'<div class="row" style="margin-top:10px;flex-wrap:wrap"><button type="button" class="primary" onclick="saveBoxLabelItem()">💾 Save to Inventory</button></div></div>'; } // READER-FIX note for saveBoxLabelItem below: when the review screen showed a
 // barcode and the user saved, a corrected barcode now replaces a stale one
 // (was: only accepted when the item had none, so fixes were silently dropped).
 function saveBoxLabelItem(){  const name=document.getElementById('blName').value.trim();  if(!name)return alert('Please enter an item name.');  const code=document.getElementById('blCode').value.trim();  const blUpcEl=document.getElementById('blUpc');  const blUpc=blUpcEl?blUpcEl.value.trim():'';  const addQty=Number(document.getElementById('blQty').value||0);  const blLoc=document.getElementById('blLocation').value.trim();  localStorage.setItem('ibBlLocation',blLoc);  let match=null;  if(code){match=items.find(function(x){return x.barcode&&String(x.barcode).trim()===code;});}  if(!match){const nl=name.toLowerCase();  match=items.find(function(x){return x.name&&x.name.trim().toLowerCase()===nl;});}  let matched=false;  let locClash='';  if(match){const savedLoc=match.location?String(match.location).trim():'';  if(savedLoc&&blLoc&&savedLoc.toLowerCase()!==blLoc.toLowerCase())locClash=savedLoc;  match.qty=Number(match.qty||0)+addQty;  if(!match.packSize)match.packSize=Number(document.getElementById('blPack').value||0);  if(!match.location&&blLoc)match.location=blLoc;  if(blUpc&&match.upc!==blUpc)match.upc=blUpc;  matched=true;}else{items.push({id:Date.now(),name:name,cat:document.getElementById('LocationCategory').value,location:blLoc,unit:document.getElementById('blUnit').value,packSize:Number(document.getElementById('blPack').value||0),qty:addQty,min:0,orderQty:0,barcode:code,upc:blUpc,supplierId:''});}  persist();  document.getElementById('boxLabelResult').innerHTML='';  document.getElementById('boxLabelStatus').textContent=(matched?('Matched: '+match.name+' — added '+addQty+', now '+match.qty+' ✓ Ready for the next label.'):('Saved: '+name+' ✓ Ready for the next label.'))+(locClash?(' ⚠ Careful: '+match.name+' is marked as being in '+locClash+', but you just scanned it as '+blLoc+'.'):'');  noteSessionScan(code); const fl=document.getElementById('fastLoad');  if(fl&&fl.checked){fastLoadNext();} } function show(id){

@@ -2354,6 +2354,10 @@ async function sendAccountRequest(){
  try{
   const {error}=await inventoryBuddySupabase.from('account_requests').insert({name:name,email:email,school:school,state:state});
   if(error)throw error;
+  // V28.29: ring Mary's email too (the request-notify function). A bonus,
+  // never a blocker — the request is already saved above, so any failure
+  // here is only logged and the visitor still gets the success message.
+  try{ await inventoryBuddySupabase.functions.invoke('request-notify',{body:{name:name,email:email,school:school,state:state}}); }catch(notifyErr){ console.error('Request notify error',notifyErr); }
   const form=document.getElementById('requestForm');
   if(form)form.innerHTML='<p class="small" style="margin:0">✅ Got it — your request is in! Mary will make your account and email your login to <b>'+email.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</b>. Keep an eye on your inbox (and check spam, just in case).</p>';
  }catch(err){console.error('Account request error',err);if(st)st.textContent='That did not go through — check your connection and tap Send again.';}

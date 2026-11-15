@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inventory Buddy — V28.27</title>
+<title>Inventory Buddy — V28.28</title>
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -64,11 +64,23 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <header><h1>📦 Inventory Buddy</h1><div class="sub">School inventory, made simpler.</div></header>
 <main>
 <section class="card no-print" id="cloudSyncCard">
-  <div id="cloudStatus" class="setup-note">Sign in to access your inventory. Need an account? Contact your Inventory Buddy administrator.</div>
+  <div id="cloudStatus" class="setup-note">Sign in to access your inventory. Need an account? Tap "Request an account" below.</div>
   <div id="authForm" style="margin-top:10px">
     <label>Email</label><input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com">
     <label>Password</label><input id="authPassword" type="password" autocomplete="current-password" placeholder="At least 6 characters">
     <button type="button" class="primary" onclick="cloudSignIn()">Sign In</button>
+    <div id="requestDoor" style="margin-top:14px;border-top:1px solid #c2f4d6;padding-top:10px">
+      <button type="button" class="secondary" style="width:100%" onclick="toggleRequestForm()">🙋 New here? Request an account</button>
+      <div id="requestForm" class="hidden" style="margin-top:10px;text-align:left">
+        <p class="small" style="margin:0 0 8px">Tell Mary who you are and she will make your account and email your login. Nothing is created until she sets it up — this just sends her your info.</p>
+        <label>Your name</label><input id="reqName" type="text" autocomplete="name" placeholder="First and last name">
+        <label>Your email</label><input id="reqEmail" type="email" autocomplete="email" placeholder="you@example.com">
+        <label>Your school</label><input id="reqSchool" type="text" placeholder="School name">
+        <label>State</label><input id="reqState" type="text" placeholder="State">
+        <button type="button" class="primary" onclick="sendAccountRequest()">📨 Send my request</button>
+        <div id="requestStatus" class="small" style="margin-top:8px"></div>
+      </div>
+    </div>
   </div>
   <div id="signedInBox" class="hidden" style="margin-top:10px">
     <div class="small">Signed in as <b id="cloudEmail"></b></div>
@@ -360,7 +372,7 @@ body:not(.authenticated) #authForm:before{content:"Sign in to continue. Inventor
 <button type="button" class="secondary" onclick="backup()">Export Backup</button>
 <label>Restore backup</label><input type="file" accept=".json" onchange="restore(event)">
 </details>
-<div class="card small no-print">Version 28.27</div>
+<div class="card small no-print">Version 28.28</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -2325,6 +2337,27 @@ function updateAuthUI(user){const form=document.getElementById('authForm'),box=d
 function toggleAboutPrivacy(){const p=document.getElementById('aboutPrivacy');if(p)p.classList.toggle('hidden');} function toggleAccountFold(){const f=document.getElementById('accountFold');if(f)f.classList.toggle('hidden');const b=document.getElementById('accountFoldBtn');if(b&&f)b.textContent=f.classList.contains('hidden')?'⚙️ My Account ▸':'⚙️ My Account ▾';} function togglePasswordForm(){const form=document.getElementById('passwordChangeForm');if(form)form.classList.toggle('hidden');} function toggleEmailForm(){const form=document.getElementById('emailChangeForm');if(form)form.classList.toggle('hidden');} async function changeAccountEmail(){const em=(document.getElementById('newAccountEmail')?.value||'').trim(); if(!em||!em.includes('@'))return alert('Type the new email address first.'); const {error}=await inventoryBuddySupabase.auth.updateUser({email:em}); if(error)return alert('Could not change email: '+error.message); alert('Almost done! A confirmation link was sent to '+em+'. Tap the link in that inbox to finish the change. If a link also arrives at your current email, tap that one too. Until then, keep signing in with your current email.'); document.getElementById('newAccountEmail').value='';}
 async function cloudSignUp(){const email=document.getElementById('authEmail')?.value.trim(),password=document.getElementById('authPassword')?.value;if(!email||!password)return alert('Enter your email and a password first.');if(password.length<6)return alert('Use a password with at least 6 characters.');const {data,error}=await inventoryBuddySupabase.auth.signUp({email,password});if(error)return alert(error.message);if(data.session){alert('Account created and signed in.');await loadCloudData();}else alert('Account created. Check your email for the confirmation link, then come back and sign in.');}
 async function cloudSignIn(){const email=document.getElementById('authEmail')?.value.trim(),password=document.getElementById('authPassword')?.value;if(!email||!password)return alert('Enter your email and password first.');const {error}=await inventoryBuddySupabase.auth.signInWithPassword({email,password});if(error)return alert(error.message);await loadCloudData();}
+// V28.28: the doorbell — a signed-out visitor can ask Mary for an account right
+// from the login door. The request lands in the account_requests table (visitors
+// can only add a request, never read any back). Mary makes the account herself,
+// like always — nothing is created automatically.
+function toggleRequestForm(){const f=document.getElementById('requestForm');if(f)f.classList.toggle('hidden');}
+async function sendAccountRequest(){
+ const name=(document.getElementById('reqName')?.value||'').trim();
+ const email=(document.getElementById('reqEmail')?.value||'').trim();
+ const school=(document.getElementById('reqSchool')?.value||'').trim();
+ const state=(document.getElementById('reqState')?.value||'').trim();
+ const st=document.getElementById('requestStatus');
+ if(!name||!email||!school||!state){if(st)st.textContent='Please fill in all four — Mary needs each one to set you up.';return;}
+ if(email.indexOf('@')<1||email.indexOf('.')<0){if(st)st.textContent='That email does not look right — check it and try again.';return;}
+ if(st)st.textContent='Sending…';
+ try{
+  const {error}=await inventoryBuddySupabase.from('account_requests').insert({name:name,email:email,school:school,state:state});
+  if(error)throw error;
+  const form=document.getElementById('requestForm');
+  if(form)form.innerHTML='<p class="small" style="margin:0">✅ Got it — your request is in! Mary will make your account and email your login to <b>'+email.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</b>. Keep an eye on your inbox (and check spam, just in case).</p>';
+ }catch(err){console.error('Account request error',err);if(st)st.textContent='That did not go through — check your connection and tap Send again.';}
+}
 async function changeAccountPassword(){
  const password=document.getElementById('newAccountPassword')?.value||'';
  const confirm=document.getElementById('confirmAccountPassword')?.value||'';
